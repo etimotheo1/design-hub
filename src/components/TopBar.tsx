@@ -40,6 +40,7 @@ export default function TopBar({ user }: { user: SessionUser }) {
 
         <nav className="flex items-center gap-1">
           {tab("/board", "Board")}
+          {tab("/pipeline", "Pipeline")}
           {tab("/dashboard", "Dashboard")}
           {tab("/submit", "Submit Idea")}
           {tab("/projects", "Projects")}
