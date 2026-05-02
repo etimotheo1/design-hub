@@ -20,31 +20,50 @@ export default function TaxonomyAdmin() {
   }
   useEffect(() => { load(); }, []);
 
+  async function restoreDefaults(what: "categories" | "card_types" | "all") {
+    const label = what === "categories" ? "default categories" : what === "card_types" ? "default types" : "all defaults";
+    if (!confirm(`Restore ${label}? This adds any missing defaults back. Your existing items are NOT touched.`)) return;
+    await fetch("/api/admin/restore-defaults", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ what }),
+    });
+    load();
+  }
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <Section
-        title="Categories"
-        hint="The area of the business an idea relates to (e.g. Distribution, Tech)."
-        kind="categories"
-        items={categories}
-        reload={load}
-      />
-      <Section
-        title="Types"
-        hint="The nature of the work (e.g. New initiative, Improvement)."
-        kind="card_types"
-        items={cardTypes}
-        reload={load}
-      />
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Section
+          title="Categories"
+          hint="The area of the business an idea relates to (e.g. Distribution, Tech)."
+          kind="categories"
+          items={categories}
+          reload={load}
+          onRestoreDefaults={() => restoreDefaults("categories")}
+        />
+        <Section
+          title="Types"
+          hint="The nature of the work (e.g. New initiative, Improvement)."
+          kind="card_types"
+          items={cardTypes}
+          reload={load}
+          onRestoreDefaults={() => restoreDefaults("card_types")}
+        />
+      </div>
+      <p className="text-xs text-slate-500 text-center">
+        Defaults only seed once on a brand-new database. Once you customize, your changes are permanent — updates won't restore deleted or renamed entries.
+      </p>
     </div>
   );
 }
 
 function Section({
-  title, hint, kind, items, reload,
+  title, hint, kind, items, reload, onRestoreDefaults,
 }: {
   title: string; hint: string; kind: Kind;
   items: TaxonomyItem[]; reload: () => void;
+  onRestoreDefaults: () => void;
 }) {
   const supportsColor = kind === "categories";
   const [name, setName] = useState("");
@@ -88,8 +107,20 @@ function Section({
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-      <h2 className="font-semibold text-slate-900">{title}</h2>
-      <p className="text-xs text-slate-500 mt-0.5 mb-4">{hint}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="font-semibold text-slate-900">{title}</h2>
+          <p className="text-xs text-slate-500 mt-0.5">{hint}</p>
+        </div>
+        <button
+          onClick={onRestoreDefaults}
+          className="text-xs text-slate-500 hover:text-slate-900 whitespace-nowrap"
+          title="Add any missing default values without touching your existing items"
+        >
+          Restore defaults
+        </button>
+      </div>
+      <div className="mb-4"></div>
 
       <form onSubmit={add} className="space-y-2 mb-4">
         <div className="flex gap-2">

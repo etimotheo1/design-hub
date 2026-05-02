@@ -208,36 +208,67 @@ function initSchema(db: DatabaseSync) {
     WHERE NOT EXISTS (SELECT 1 FROM stage_history h WHERE h.card_id = c.id)
   `);
 
-  // Seed defaults only on a TRULY fresh database. Once it runs (or once we
-  // detect any pre-existing data), we set a marker so subsequent boots skip
-  // it. Without this, deleting a default project/category/type would have it
-  // respawn on the next request.
-  const seeded = db.prepare(`SELECT value FROM meta WHERE key = 'seeded_v1'`).get();
-  if (seeded) return;
+  // ============================================================================
+  // SEEDING — VERY DEFENSIVE GATE.
+  //
+  // We only ever seed defaults if the database is COMPLETELY empty (no users,
+  // no projects, no categories, no card_types). Any existing data — even a
+  // single row in any of those tables — is treated as "user has started using
+  // the app" and seeding is permanently disabled by setting per-table markers.
+  //
+  // This prevents the previous bug where deleted/renamed default categories
+  // would respawn after a deploy. Even on a future volume hiccup that loses
+  // the global marker, individual table contents serve as the gate.
+  //
+  // Admins who actually want defaults restored can use the "Restore defaults"
+  // button on /admin/taxonomy, which calls the seed endpoint explicitly.
+  // ============================================================================
 
-  const projectCount = db.prepare(`SELECT COUNT(*) AS c FROM projects`).get() as { c: number } | undefined;
-  const userCount    = db.prepare(`SELECT COUNT(*) AS c FROM users`).get() as { c: number } | undefined;
-  const hasExistingData = (projectCount?.c ?? 0) > 0 || (userCount?.c ?? 0) > 0;
+  const counts = {
+    projects:   (db.prepare(`SELECT COUNT(*) AS c FROM projects`).get()   as { c: number }).c,
+    users:      (db.prepare(`SELECT COUNT(*) AS c FROM users`).get()      as { c: number }).c,
+    categories: (db.prepare(`SELECT COUNT(*) AS c FROM categories`).get() as { c: number }).c,
+    cardTypes:  (db.prepare(`SELECT COUNT(*) AS c FROM card_types`).get() as { c: number }).c,
+  };
+  const totallyEmpty =
+    counts.projects === 0 && counts.users === 0 && counts.categories === 0 && counts.cardTypes === 0;
 
-  if (hasExistingData) {
-    // Existing deployment — DO NOT seed; just mark as seeded so the user's
-    // deletions stick from now on.
-    db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES ('seeded_v1', datetime('now'))`).run();
-    return;
-  }
+  // Mark each individual table as "no longer auto-seedable" if it has any data.
+  // This is permanent: once you've added or deleted anything in a table, it's
+  // your table and we never touch it again.
+  const setMarker = db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES (?, datetime('now'))`);
+  if (counts.projects > 0)   setMarker.run("seeded_projects",   "noop");
+  if (counts.categories > 0) setMarker.run("seeded_categories", "noop");
+  if (counts.cardTypes > 0)  setMarker.run("seeded_card_types", "noop");
 
-  // Brand-new database — seed defaults once.
-  const seedProject = db.prepare(`INSERT OR IGNORE INTO projects (name, description, color) VALUES (?, ?, ?)`);
-  const defaultProjects: Array<[string, string, string]> = [
+  if (!totallyEmpty) return;
+
+  // Brand-new install — seed once, then mark so it never runs again.
+  seedProjectDefaults(db);
+  seedCategoryDefaults(db);
+  seedCardTypeDefaults(db);
+  setMarker.run("seeded_projects",   "v1");
+  setMarker.run("seeded_categories", "v1");
+  setMarker.run("seeded_card_types", "v1");
+}
+
+// Exported so an admin can manually restore defaults via /api/admin/restore-defaults.
+// These functions use INSERT OR IGNORE — they only add MISSING defaults, never
+// overwrite existing rows. Safe to call any number of times.
+export function seedProjectDefaults(db: DatabaseSync) {
+  const stmt = db.prepare(`INSERT OR IGNORE INTO projects (name, description, color) VALUES (?, ?, ?)`);
+  const defaults: Array<[string, string, string]> = [
     ["Tanzania Market Leadership", "Defend and deepen our position in Tanzania.", "emerald"],
     ["Kenya Expansion",            "Evaluate and prepare entry strategy for Kenya.", "sky"],
     ["Rice Pilot",                 "Pilot and validate the rice product line.", "amber"],
     ["etasks Platform",            "Long-term: evolve into a tech company. Design Hub itself feeds into etasks.", "indigo"],
   ];
-  defaultProjects.forEach((row) => seedProject.run(...row));
+  defaults.forEach((row) => stmt.run(...row));
+}
 
-  const seedCategory = db.prepare(`INSERT OR IGNORE INTO categories (name, color, sort_order) VALUES (?, ?, ?)`);
-  const defaultCategories: Array<[string, string]> = [
+export function seedCategoryDefaults(db: DatabaseSync) {
+  const stmt = db.prepare(`INSERT OR IGNORE INTO categories (name, color, sort_order) VALUES (?, ?, ?)`);
+  const defaults: Array<[string, string]> = [
     ["Distribution", "blue"],
     ["Product",      "emerald"],
     ["Tech",         "indigo"],
@@ -245,13 +276,13 @@ function initSchema(db: DatabaseSync) {
     ["Operations",   "amber"],
     ["Other",        "slate"],
   ];
-  defaultCategories.forEach(([name, color], i) => seedCategory.run(name, color, i));
+  defaults.forEach(([name, color], i) => stmt.run(name, color, i));
+}
 
-  const seedType = db.prepare(`INSERT OR IGNORE INTO card_types (name, sort_order) VALUES (?, ?)`);
-  const defaultTypes = ["New initiative", "Improvement", "Fix", "Research"];
-  defaultTypes.forEach((name, i) => seedType.run(name, i));
-
-  db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES ('seeded_v1', datetime('now'))`).run();
+export function seedCardTypeDefaults(db: DatabaseSync) {
+  const stmt = db.prepare(`INSERT OR IGNORE INTO card_types (name, sort_order) VALUES (?, ?)`);
+  const defaults = ["New initiative", "Improvement", "Fix", "Research"];
+  defaults.forEach((name, i) => stmt.run(name, i));
 }
 
 // Run a one-shot query; useful for `route.ts` handlers that want raw rows.
