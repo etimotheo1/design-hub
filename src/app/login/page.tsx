@@ -27,7 +27,13 @@ export default function LoginPage() {
       setError(data.error || "Login failed");
       return;
     }
-    router.push("/board");
+    // If the user signed in with a temp password, force them through the
+    // change-password screen; the page guards on /board etc. enforce this too.
+    if (data.user?.must_change_password === 1) {
+      router.push("/change-password");
+    } else {
+      router.push("/board");
+    }
     router.refresh();
   }
 
@@ -62,10 +68,7 @@ export default function LoginPage() {
       </form>
 
       <div className="mt-8 text-xs text-slate-500 leading-relaxed border-t border-slate-200 pt-6">
-        <p>First time? Use <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded">elia / changeme</span></p>
-        <p className="mt-2">No account?{" "}
-          <Link href="/register" className="text-brand-accent font-medium hover:underline">Register</Link>
-        </p>
+        <p>Design Hub is invite-only. If you don't have an account yet, ask your admin for an invite.</p>
       </div>
     </AuthShell>
   );

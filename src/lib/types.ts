@@ -13,31 +13,29 @@ export const STAGE_LABELS: Record<Stage, string> = {
   ship: "Ship",
 };
 
-// Card category — the area of the business an idea relates to.
-export type Category = "Distribution" | "Product" | "Tech" | "Marketing" | "Operations" | "Other";
-export const CATEGORIES: Category[] = [
-  "Distribution",
-  "Product",
-  "Tech",
-  "Marketing",
-  "Operations",
-  "Other",
-];
+// Card category — the area of the business an idea relates to. Now editable
+// by admins via /admin/taxonomy, so the value is just a string (the name).
+export type Category = string;
 
-// Card type — the nature of the work.
-export type CardType = "New initiative" | "Improvement" | "Fix" | "Research";
-export const CARD_TYPES: CardType[] = [
-  "New initiative",
-  "Improvement",
-  "Fix",
-  "Research",
-];
+// Card type — the nature of the work. Same: dynamically managed.
+export type CardType = string;
+
+// Shared shape for editable-taxonomy items.
+export interface TaxonomyItem {
+  id: number;
+  name: string;
+  archived: number;
+  sort_order: number;
+  created_at: string;
+}
 
 export interface User {
   id: number;
   username: string;
+  email: string | null;
   display_name: string;
   role: "admin" | "tech" | "non_tech";
+  must_change_password: number; // 0 or 1
   created_at: string;
 }
 
@@ -74,6 +72,18 @@ export interface StageHistoryEntry {
   entered_at: string;
 }
 
+export interface Invitation {
+  token: string;
+  email: string;
+  display_name: string;
+  role: User["role"];
+  invited_by: number;
+  created_at: string;
+  expires_at: string;
+  used: number;
+  used_at: string | null;
+}
+
 export interface CardWithMeta extends Card {
   project_name: string;
   created_by_name: string;
@@ -107,4 +117,5 @@ export interface SessionUser {
   username: string;
   display_name: string;
   role: User["role"];
+  must_change_password: number;
 }

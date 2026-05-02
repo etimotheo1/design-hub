@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 export default function ProjectsPage() {
   const user = getCurrentUser();
   if (!user) redirect("/login");
+  if (user.must_change_password === 1) redirect("/change-password");
 
   return (
     <div className="min-h-screen flex flex-col">

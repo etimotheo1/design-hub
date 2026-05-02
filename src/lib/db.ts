@@ -113,8 +113,40 @@ function initSchema(db: DatabaseSync) {
       entered_at  TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE
     );
-
     CREATE INDEX IF NOT EXISTS idx_stage_history_card ON stage_history(card_id);
+
+    -- Editable taxonomy: Categories and Card Types are managed by admins.
+    -- cards.category / cards.card_type store the NAME (denormalised) so
+    -- queries don't need joins; renames are propagated by an UPDATE on cards.
+    CREATE TABLE IF NOT EXISTS categories (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      name       TEXT NOT NULL UNIQUE,
+      archived   INTEGER NOT NULL DEFAULT 0,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS card_types (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      name       TEXT NOT NULL UNIQUE,
+      archived   INTEGER NOT NULL DEFAULT 0,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Tokenised invitations: admin generates a link, recipient sets their own password.
+    CREATE TABLE IF NOT EXISTS invitations (
+      token        TEXT PRIMARY KEY,
+      email        TEXT NOT NULL,
+      display_name TEXT NOT NULL,
+      role         TEXT NOT NULL,
+      invited_by   INTEGER NOT NULL,
+      created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at   TEXT NOT NULL,
+      used         INTEGER NOT NULL DEFAULT 0,
+      used_at      TEXT,
+      FOREIGN KEY (invited_by) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_invitations_email ON invitations(email);
   `);
 
   // Additive migrations for older DBs that pre-date these columns.
@@ -128,6 +160,12 @@ function initSchema(db: DatabaseSync) {
   if (!tableHasColumn(db, "cards", "deadline")) {
     db.exec(`ALTER TABLE cards ADD COLUMN deadline TEXT`);
   }
+  if (!tableHasColumn(db, "users", "email")) {
+    db.exec(`ALTER TABLE users ADD COLUMN email TEXT`);
+  }
+  if (!tableHasColumn(db, "users", "must_change_password")) {
+    db.exec(`ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0`);
+  }
 
   // Backfill stage_history for any pre-existing cards that have no entries yet,
   // so dashboard analytics work from the moment the migration runs.
@@ -137,6 +175,15 @@ function initSchema(db: DatabaseSync) {
     FROM cards c
     WHERE NOT EXISTS (SELECT 1 FROM stage_history h WHERE h.card_id = c.id)
   `);
+
+  // Seed default taxonomy on a fresh DB. Idempotent — INSERT OR IGNORE.
+  const seedCategory = db.prepare(`INSERT OR IGNORE INTO categories (name, sort_order) VALUES (?, ?)`);
+  const defaultCategories = ["Distribution", "Product", "Tech", "Marketing", "Operations", "Other"];
+  defaultCategories.forEach((name, i) => seedCategory.run(name, i));
+
+  const seedType = db.prepare(`INSERT OR IGNORE INTO card_types (name, sort_order) VALUES (?, ?)`);
+  const defaultTypes = ["New initiative", "Improvement", "Fix", "Research"];
+  defaultTypes.forEach((name, i) => seedType.run(name, i));
 }
 
 function seedDefaults(db: DatabaseSync) {

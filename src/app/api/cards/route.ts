@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { all, get, run } from "@/lib/db";
-import type { CardWithMeta, Stage, Category, CardType } from "@/lib/types";
-import { STAGES, CATEGORIES, CARD_TYPES } from "@/lib/types";
+import type { CardWithMeta, Stage } from "@/lib/types";
+import { STAGES } from "@/lib/types";
+
+// Look up taxonomy values by name. We accept any non-empty name that exists
+// in the table (and isn't archived) — this keeps card forms simple.
+function isKnownCategory(name: string | null): boolean {
+  if (!name) return false;
+  return !!get(`SELECT 1 FROM categories WHERE name = ? AND archived = 0`, [name]);
+}
+function isKnownCardType(name: string | null): boolean {
+  if (!name) return false;
+  return !!get(`SELECT 1 FROM card_types WHERE name = ? AND archived = 0`, [name]);
+}
 
 export async function GET(req: NextRequest) {
   const user = getCurrentUser();
@@ -46,8 +57,8 @@ export async function POST(req: NextRequest) {
   const description = body.description ? String(body.description).trim() : null;
   const imagined = body.imagined_outcome ? String(body.imagined_outcome).trim() : null;
   const stage: Stage = STAGES.includes(body.stage) ? body.stage : "idea";
-  const category = CATEGORIES.includes(body.category as Category) ? (body.category as Category) : null;
-  const cardType = CARD_TYPES.includes(body.card_type as CardType) ? (body.card_type as CardType) : null;
+  const category = typeof body.category === "string" && isKnownCategory(body.category) ? body.category : null;
+  const cardType = typeof body.card_type === "string" && isKnownCardType(body.card_type) ? body.card_type : null;
   const deadline = typeof body.deadline === "string" && body.deadline.match(/^\d{4}-\d{2}-\d{2}$/)
     ? body.deadline : null;
 

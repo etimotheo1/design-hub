@@ -43,7 +43,12 @@ export default function TopBar({ user }: { user: SessionUser }) {
           {tab("/dashboard", "Dashboard")}
           {tab("/submit", "Submit Idea")}
           {tab("/projects", "Projects")}
+          {user.role === "admin" && tab("/admin/users", "Users")}
+          {user.role === "admin" && tab("/admin/taxonomy", "Tags")}
         </nav>
+
+        {/* Spacer + change-password shortcut */}
+        <div className="hidden" />
 
         <div className="flex items-center gap-3">
           <div className="hidden sm:flex items-center gap-2">
@@ -52,6 +57,12 @@ export default function TopBar({ user }: { user: SessionUser }) {
               {roleLabel}
             </span>
           </div>
+          <Link
+            href="/change-password"
+            className="text-sm text-slate-500 hover:text-slate-900 transition hidden sm:inline"
+          >
+            Password
+          </Link>
           <button
             onClick={logout}
             className="text-sm text-slate-500 hover:text-slate-900 transition"

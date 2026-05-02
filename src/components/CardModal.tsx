@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import type { Card, Comment, Attachment, Stage, SessionUser, User, Category, CardType } from "@/lib/types";
-import { STAGES, STAGE_LABELS, CATEGORIES, CARD_TYPES } from "@/lib/types";
+import type { Card, Comment, Attachment, Stage, SessionUser, User, TaxonomyItem } from "@/lib/types";
+import { STAGES, STAGE_LABELS } from "@/lib/types";
 
 type Loaded = {
   card: Card & { project_name: string; created_by_name: string; assignee_name: string | null };
@@ -22,6 +22,8 @@ export default function CardModal({
 }) {
   const [data, setData] = useState<Loaded | null>(null);
   const [users, setUsers] = useState<User[]>([]);
+  const [categories, setCategories] = useState<TaxonomyItem[]>([]);
+  const [cardTypes, setCardTypes] = useState<TaxonomyItem[]>([]);
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -44,6 +46,12 @@ export default function CardModal({
   useEffect(() => {
     load();
     fetch("/api/users").then((r) => r.json()).then((j) => { if (j.ok) setUsers(j.users); });
+    fetch("/api/taxonomy").then((r) => r.json()).then((j) => {
+      if (j.ok) {
+        setCategories(j.categories.filter((c: TaxonomyItem) => !c.archived));
+        setCardTypes(j.cardTypes.filter((c: TaxonomyItem) => !c.archived));
+      }
+    });
   }, [load]);
 
   if (!data) {
@@ -164,7 +172,7 @@ export default function CardModal({
               className="w-full rounded-lg border border-slate-300 px-2 py-1.5 bg-white"
             >
               <option value="">— none —</option>
-              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
             </select>
           </div>
           <div>
@@ -175,7 +183,7 @@ export default function CardModal({
               className="w-full rounded-lg border border-slate-300 px-2 py-1.5 bg-white"
             >
               <option value="">— none —</option>
-              {CARD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              {cardTypes.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
             </select>
           </div>
           <div>

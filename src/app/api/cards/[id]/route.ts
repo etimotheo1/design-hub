@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { all, get, run } from "@/lib/db";
-import type { Card, Comment, Attachment, Stage, Category, CardType } from "@/lib/types";
-import { STAGES, CATEGORIES, CARD_TYPES } from "@/lib/types";
+import type { Card, Comment, Attachment, Stage } from "@/lib/types";
+import { STAGES } from "@/lib/types";
+
+function isKnownCategory(name: string | null): boolean {
+  if (!name) return false;
+  return !!get(`SELECT 1 FROM categories WHERE name = ? AND archived = 0`, [name]);
+}
+function isKnownCardType(name: string | null): boolean {
+  if (!name) return false;
+  return !!get(`SELECT 1 FROM card_types WHERE name = ? AND archived = 0`, [name]);
+}
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const user = getCurrentUser();
@@ -50,11 +59,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.imagined_outcome !== undefined) { fields.push("imagined_outcome = ?"); values.push(body.imagined_outcome?.trim() || null); }
   if (body.assignee_id !== undefined) { fields.push("assignee_id = ?"); values.push(body.assignee_id || null); }
   if (body.category !== undefined) {
-    const c = CATEGORIES.includes(body.category as Category) ? body.category : null;
+    const c = typeof body.category === "string" && isKnownCategory(body.category) ? body.category : null;
     fields.push("category = ?"); values.push(c);
   }
   if (body.card_type !== undefined) {
-    const t = CARD_TYPES.includes(body.card_type as CardType) ? body.card_type : null;
+    const t = typeof body.card_type === "string" && isKnownCardType(body.card_type) ? body.card_type : null;
     fields.push("card_type = ?"); values.push(t);
   }
   if (body.deadline !== undefined) {

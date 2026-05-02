@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
-import type { Project, Stage, Category, CardType } from "@/lib/types";
-import { STAGES, STAGE_LABELS, CATEGORIES, CARD_TYPES } from "@/lib/types";
+import { useEffect, useState } from "react";
+import type { Project, Stage, Category, CardType, TaxonomyItem } from "@/lib/types";
+import { STAGES, STAGE_LABELS } from "@/lib/types";
 
 export default function NewCardForm({
   projects,
@@ -24,8 +24,19 @@ export default function NewCardForm({
   const [category, setCategory] = useState<Category | "">("");
   const [cardType, setCardType] = useState<CardType | "">("");
   const [deadline, setDeadline] = useState("");
+  const [categories, setCategories] = useState<TaxonomyItem[]>([]);
+  const [cardTypes, setCardTypes] = useState<TaxonomyItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/taxonomy").then((r) => r.json()).then((j) => {
+      if (j.ok) {
+        setCategories(j.categories.filter((c: TaxonomyItem) => !c.archived));
+        setCardTypes(j.cardTypes.filter((c: TaxonomyItem) => !c.archived));
+      }
+    });
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -99,22 +110,22 @@ export default function NewCardForm({
             <label className="block text-sm font-medium text-slate-700">Category</label>
             <select
               value={category}
-              onChange={(e) => setCategory(e.target.value as Category | "")}
+              onChange={(e) => setCategory(e.target.value)}
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
             >
               <option value="">— none —</option>
-              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700">Type</label>
             <select
               value={cardType}
-              onChange={(e) => setCardType(e.target.value as CardType | "")}
+              onChange={(e) => setCardType(e.target.value)}
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
             >
               <option value="">— none —</option>
-              {CARD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              {cardTypes.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
             </select>
           </div>
         </div>

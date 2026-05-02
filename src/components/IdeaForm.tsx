@@ -1,8 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Project, Category, CardType } from "@/lib/types";
-import { CATEGORIES, CARD_TYPES } from "@/lib/types";
+import type { Project, Category, CardType, TaxonomyItem } from "@/lib/types";
 
 // Friendly, non-tech-oriented submission form. Always lands cards in the Idea column.
 export default function IdeaForm({ projects }: { projects: Project[] }) {
@@ -14,9 +13,20 @@ export default function IdeaForm({ projects }: { projects: Project[] }) {
   const [category, setCategory] = useState<Category | "">("");
   const [cardType, setCardType] = useState<CardType | "">("");
   const [deadline, setDeadline] = useState("");
+  const [categories, setCategories] = useState<TaxonomyItem[]>([]);
+  const [cardTypes, setCardTypes] = useState<TaxonomyItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/taxonomy").then((r) => r.json()).then((j) => {
+      if (j.ok) {
+        setCategories(j.categories.filter((c: TaxonomyItem) => !c.archived));
+        setCardTypes(j.cardTypes.filter((c: TaxonomyItem) => !c.archived));
+      }
+    });
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -114,22 +124,22 @@ export default function IdeaForm({ projects }: { projects: Project[] }) {
           <label className="block text-sm font-medium text-slate-700">Category</label>
           <select
             value={category}
-            onChange={(e) => setCategory(e.target.value as Category | "")}
+            onChange={(e) => setCategory(e.target.value)}
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
           >
             <option value="">Choose…</option>
-            {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
           </select>
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700">Type</label>
           <select
             value={cardType}
-            onChange={(e) => setCardType(e.target.value as CardType | "")}
+            onChange={(e) => setCardType(e.target.value)}
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
           >
             <option value="">Choose…</option>
-            {CARD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            {cardTypes.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
           </select>
         </div>
       </div>

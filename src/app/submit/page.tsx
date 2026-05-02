@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 export default function SubmitPage() {
   const user = getCurrentUser();
   if (!user) redirect("/login");
+  if (user.must_change_password === 1) redirect("/change-password");
 
   const projects = all<Project>(`SELECT * FROM projects WHERE archived = 0 ORDER BY name ASC`);
 
