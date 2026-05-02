@@ -1,0 +1,16 @@
+# Optional: Render.com blueprint. If you deploy on Render instead of Railway,
+# use the "New Blueprint" flow and point at this file.
+services:
+  - type: web
+    name: design-hub
+    runtime: node
+    plan: starter # $7/mo — needed for the persistent disk
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+    disk:
+      name: design-hub-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1
