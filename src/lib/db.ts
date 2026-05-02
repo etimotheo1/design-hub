@@ -25,7 +25,6 @@ export function getDb(): DatabaseSync {
   db.exec("PRAGMA foreign_keys = ON");
 
   initSchema(db);
-  seedDefaults(db);
 
   _db = db;
   return db;
@@ -147,6 +146,13 @@ function initSchema(db: DatabaseSync) {
       FOREIGN KEY (invited_by) REFERENCES users(id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_invitations_email ON invitations(email);
+
+    -- Generic key/value store. Used to track whether one-shot setup steps
+    -- (like seeding defaults) have already run.
+    CREATE TABLE IF NOT EXISTS meta (
+      key   TEXT PRIMARY KEY,
+      value TEXT
+    );
   `);
 
   // Additive migrations for older DBs that pre-date these columns.
@@ -176,7 +182,34 @@ function initSchema(db: DatabaseSync) {
     WHERE NOT EXISTS (SELECT 1 FROM stage_history h WHERE h.card_id = c.id)
   `);
 
-  // Seed default taxonomy on a fresh DB. Idempotent — INSERT OR IGNORE.
+  // Seed defaults only on a TRULY fresh database. Once it runs (or once we
+  // detect any pre-existing data), we set a marker so subsequent boots skip
+  // it. Without this, deleting a default project/category/type would have it
+  // respawn on the next request.
+  const seeded = db.prepare(`SELECT value FROM meta WHERE key = 'seeded_v1'`).get();
+  if (seeded) return;
+
+  const projectCount = db.prepare(`SELECT COUNT(*) AS c FROM projects`).get() as { c: number } | undefined;
+  const userCount    = db.prepare(`SELECT COUNT(*) AS c FROM users`).get() as { c: number } | undefined;
+  const hasExistingData = (projectCount?.c ?? 0) > 0 || (userCount?.c ?? 0) > 0;
+
+  if (hasExistingData) {
+    // Existing deployment — DO NOT seed; just mark as seeded so the user's
+    // deletions stick from now on.
+    db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES ('seeded_v1', datetime('now'))`).run();
+    return;
+  }
+
+  // Brand-new database — seed defaults once.
+  const seedProject = db.prepare(`INSERT OR IGNORE INTO projects (name, description) VALUES (?, ?)`);
+  const defaultProjects: Array<[string, string]> = [
+    ["Tanzania Market Leadership", "Defend and deepen our position in Tanzania."],
+    ["Kenya Expansion", "Evaluate and prepare entry strategy for Kenya."],
+    ["Rice Pilot", "Pilot and validate the rice product line."],
+    ["etasks Platform", "Long-term: evolve into a tech company. Design Hub itself feeds into etasks."],
+  ];
+  defaultProjects.forEach((row) => seedProject.run(...row));
+
   const seedCategory = db.prepare(`INSERT OR IGNORE INTO categories (name, sort_order) VALUES (?, ?)`);
   const defaultCategories = ["Distribution", "Product", "Tech", "Marketing", "Operations", "Other"];
   defaultCategories.forEach((name, i) => seedCategory.run(name, i));
@@ -184,23 +217,8 @@ function initSchema(db: DatabaseSync) {
   const seedType = db.prepare(`INSERT OR IGNORE INTO card_types (name, sort_order) VALUES (?, ?)`);
   const defaultTypes = ["New initiative", "Improvement", "Fix", "Research"];
   defaultTypes.forEach((name, i) => seedType.run(name, i));
-}
 
-function seedDefaults(db: DatabaseSync) {
-  // Seed three default projects matching the current strategic priorities.
-  // Idempotent — INSERT OR IGNORE keeps the seed safe across restarts.
-  const seedProjects = db.prepare(
-    `INSERT OR IGNORE INTO projects (name, description) VALUES (?, ?)`
-  );
-  const defaults: Array<[string, string]> = [
-    ["Tanzania Market Leadership", "Defend and deepen our position in Tanzania."],
-    ["Kenya Expansion", "Evaluate and prepare entry strategy for Kenya."],
-    ["Rice Pilot", "Pilot and validate the rice product line."],
-    ["etasks Platform", "Long-term: evolve into a tech company. Design Hub itself feeds into etasks."],
-  ];
-  for (const row of defaults) {
-    seedProjects.run(...row);
-  }
+  db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES ('seeded_v1', datetime('now'))`).run();
 }
 
 // Run a one-shot query; useful for `route.ts` handlers that want raw rows.
