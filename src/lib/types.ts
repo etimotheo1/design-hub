@@ -92,7 +92,17 @@ export interface CardWithMeta extends Card {
   assignee_name: string | null;
   comment_count: number;
   attachment_count: number;
+  collaborator_count: number;
   current_stage_entered_at: string | null; // when the card entered its current stage
+}
+
+export interface Collaborator {
+  user_id: number;
+  display_name: string;
+  username: string;
+  email: string | null;
+  added_at: string;
+  added_by_name: string;
 }
 
 export interface Comment {

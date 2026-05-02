@@ -44,9 +44,13 @@ function formatDuration(seconds: number): string {
 
 function deadlineLabel(d: string): { label: string; cls: string } {
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const due = new Date(d + "T00:00:00");
-  const days = Math.round((due.getTime() - today.getTime()) / 86400000);
-  const formatted = due.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  const hasTime = d.length > 10;
+  const due = new Date(hasTime ? d : `${d}T00:00:00`);
+  const dueDay = new Date(due); dueDay.setHours(0, 0, 0, 0);
+  const days = Math.round((dueDay.getTime() - today.getTime()) / 86400000);
+  const formatted = due.toLocaleString(undefined, hasTime
+    ? { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }
+    : { month: "short", day: "numeric", year: "numeric" });
   if (days < 0)  return { label: `Overdue (${Math.abs(days)}d) · ${formatted}`, cls: "text-red-700 bg-red-50" };
   if (days === 0) return { label: `Today · ${formatted}`, cls: "text-amber-700 bg-amber-50" };
   return { label: `In ${days}d · ${formatted}`, cls: "text-slate-700 bg-slate-50" };

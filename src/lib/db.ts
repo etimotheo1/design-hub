@@ -194,6 +194,20 @@ function initSchema(db: DatabaseSync) {
       key   TEXT PRIMARY KEY,
       value TEXT
     );
+
+    -- Multiple collaborators per card. Join table; PK prevents duplicates.
+    CREATE TABLE IF NOT EXISTS card_collaborators (
+      card_id   INTEGER NOT NULL,
+      user_id   INTEGER NOT NULL,
+      added_at  TEXT NOT NULL DEFAULT (datetime('now')),
+      added_by  INTEGER NOT NULL,
+      PRIMARY KEY (card_id, user_id),
+      FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (added_by) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_collab_card ON card_collaborators(card_id);
+    CREATE INDEX IF NOT EXISTS idx_collab_user ON card_collaborators(user_id);
   `);
 
   // Additive migrations for older DBs that pre-date these columns.

@@ -1,13 +1,23 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import type { Card, Comment, Attachment, Stage, SessionUser, User, TaxonomyItem } from "@/lib/types";
+import type { Card, Comment, Attachment, Stage, SessionUser, User, TaxonomyItem, Collaborator } from "@/lib/types";
 import { STAGES, STAGE_LABELS } from "@/lib/types";
 
 type Loaded = {
   card: Card & { project_name: string; created_by_name: string; assignee_name: string | null };
   comments: (Comment & { author_name: string })[];
   attachments: Attachment[];
+  collaborators: Collaborator[];
 };
+
+// Convert deadline value (date or datetime string) to the format <input type="datetime-local">
+// expects: "YYYY-MM-DDTHH:MM". Backwards compatible with old date-only values
+// (we treat midnight, but render with default 14:00 if user is selecting fresh).
+function deadlineForInput(d: string | null): string {
+  if (!d) return "";
+  if (d.length === 10) return `${d}T14:00`; // legacy date-only → assume 2pm
+  return d.slice(0, 16);                    // trim seconds if any
+}
 
 export default function CardModal({
   cardId,
@@ -62,7 +72,9 @@ export default function CardModal({
     );
   }
 
-  const { card, comments, attachments } = data;
+  const { card, comments, attachments, collaborators } = data;
+  const collaboratorIds = new Set(collaborators.map((c) => c.user_id));
+  const addableUsers = users.filter((u) => !collaboratorIds.has(u.id) && u.id !== card.assignee_id);
 
   async function patch(body: Record<string, unknown>) {
     await fetch(`/api/cards/${cardId}`, {
@@ -105,6 +117,23 @@ export default function CardModal({
 
   async function removeAttachment(id: number) {
     await fetch(`/api/cards/${cardId}/attachments?attachment_id=${id}`, { method: "DELETE" });
+    await load();
+    onChange();
+  }
+
+  async function addCollaborator(userId: number) {
+    if (!userId) return;
+    await fetch(`/api/cards/${cardId}/collaborators`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId }),
+    });
+    await load();
+    onChange();
+  }
+
+  async function removeCollaborator(userId: number) {
+    await fetch(`/api/cards/${cardId}/collaborators?user_id=${userId}`, { method: "DELETE" });
     await load();
     onChange();
   }
@@ -189,8 +218,8 @@ export default function CardModal({
           <div>
             <span className="block text-xs text-slate-500 mb-1">Deadline</span>
             <input
-              type="date"
-              value={card.deadline ?? ""}
+              type="datetime-local"
+              value={deadlineForInput(card.deadline)}
               onChange={(e) => patch({ deadline: e.target.value || null })}
               className="w-full rounded-lg border border-slate-300 px-2 py-1.5 bg-white"
             />
@@ -244,6 +273,38 @@ export default function CardModal({
         </div>
 
         <hr className="border-slate-200" />
+
+        {/* Collaborators */}
+        <Section label={`Collaborators (${collaborators.length})`}>
+          {collaborators.length > 0 ? (
+            <ul className="flex flex-wrap gap-1.5 mb-3">
+              {collaborators.map((c) => (
+                <li key={c.user_id} className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-100">
+                  <span className="font-medium">{c.display_name}</span>
+                  <button
+                    onClick={() => removeCollaborator(c.user_id)}
+                    title="Remove collaborator"
+                    className="text-indigo-400 hover:text-indigo-700"
+                  >×</button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-slate-400 italic mb-3">No collaborators yet.</p>
+          )}
+          {addableUsers.length > 0 && (
+            <select
+              value=""
+              onChange={(e) => { if (e.target.value) addCollaborator(Number(e.target.value)); }}
+              className="text-sm rounded-lg border border-slate-300 px-2 py-1.5 bg-white"
+            >
+              <option value="">+ Add collaborator…</option>
+              {addableUsers.map((u) => (
+                <option key={u.id} value={u.id}>{u.display_name}</option>
+              ))}
+            </select>
+          )}
+        </Section>
 
         {/* Attachments */}
         <Section label={`Attachments (${attachments.length})`}>

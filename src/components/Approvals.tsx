@@ -40,7 +40,8 @@ function ageDays(iso: string): number {
 }
 function deadlineDays(d: string): number {
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const due = new Date(d + "T00:00:00");
+  const due = new Date(d.length === 10 ? `${d}T00:00:00` : d);
+  due.setHours(0, 0, 0, 0);
   return Math.round((due.getTime() - today.getTime()) / 86400000);
 }
 

@@ -24,6 +24,15 @@ export default function NewCardForm({
   const [category, setCategory] = useState<Category | "">("");
   const [cardType, setCardType] = useState<CardType | "">("");
   const [deadline, setDeadline] = useState("");
+
+  // When the user picks a date for the first time, default to 2pm. They can edit.
+  function onDeadlineChange(v: string) {
+    if (!v) { setDeadline(""); return; }
+    // datetime-local always returns "YYYY-MM-DDTHH:MM"; if the time is 00:00
+    // (browser default for blank), bump it to 14:00 unless user already changed.
+    if (!deadline && v.endsWith("T00:00")) v = v.slice(0, 11) + "14:00";
+    setDeadline(v);
+  }
   const [categories, setCategories] = useState<TaxonomyItem[]>([]);
   const [cardTypes, setCardTypes] = useState<TaxonomyItem[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -133,11 +142,12 @@ export default function NewCardForm({
         <div>
           <label className="block text-sm font-medium text-slate-700">Deadline (optional)</label>
           <input
-            type="date"
+            type="datetime-local"
             value={deadline}
-            onChange={(e) => setDeadline(e.target.value)}
+            onChange={(e) => onDeadlineChange(e.target.value)}
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
+          <p className="text-xs text-slate-400 mt-1">Defaults to 2:00 PM if you only pick a date.</p>
         </div>
 
         <div>

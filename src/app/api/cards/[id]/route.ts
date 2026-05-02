@@ -39,8 +39,21 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     `SELECT * FROM attachments WHERE card_id = ? ORDER BY created_at ASC`,
     [id]
   );
+  const collaborators = all<{
+    user_id: number; display_name: string; username: string; email: string | null;
+    added_at: string; added_by_name: string;
+  }>(
+    `SELECT u.id AS user_id, u.display_name, u.username, u.email,
+            cc.added_at, ab.display_name AS added_by_name
+     FROM card_collaborators cc
+     JOIN users u  ON u.id  = cc.user_id
+     JOIN users ab ON ab.id = cc.added_by
+     WHERE cc.card_id = ?
+     ORDER BY cc.added_at ASC`,
+    [id]
+  );
 
-  return NextResponse.json({ ok: true, card, comments, attachments });
+  return NextResponse.json({ ok: true, card, comments, attachments, collaborators });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
@@ -67,7 +80,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     fields.push("card_type = ?"); values.push(t);
   }
   if (body.deadline !== undefined) {
-    const d = typeof body.deadline === "string" && body.deadline.match(/^\d{4}-\d{2}-\d{2}$/)
+    // Accept YYYY-MM-DD or YYYY-MM-DDTHH:MM[:SS].
+    const d = typeof body.deadline === "string" && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$/.test(body.deadline)
       ? body.deadline : null;
     fields.push("deadline = ?"); values.push(d);
   }

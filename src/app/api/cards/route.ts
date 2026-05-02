@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
            a.display_name AS assignee_name,
            (SELECT COUNT(*) FROM comments cm WHERE cm.card_id = c.id) AS comment_count,
            (SELECT COUNT(*) FROM attachments at WHERE at.card_id = c.id) AS attachment_count,
+           (SELECT COUNT(*) FROM card_collaborators cc WHERE cc.card_id = c.id) AS collaborator_count,
            (SELECT MAX(entered_at) FROM stage_history h
               WHERE h.card_id = c.id AND h.stage = c.stage) AS current_stage_entered_at
     FROM cards c
@@ -59,7 +60,8 @@ export async function POST(req: NextRequest) {
   const stage: Stage = STAGES.includes(body.stage) ? body.stage : "idea";
   const category = typeof body.category === "string" && isKnownCategory(body.category) ? body.category : null;
   const cardType = typeof body.card_type === "string" && isKnownCardType(body.card_type) ? body.card_type : null;
-  const deadline = typeof body.deadline === "string" && body.deadline.match(/^\d{4}-\d{2}-\d{2}$/)
+  // Accept either YYYY-MM-DD (date only) or YYYY-MM-DDTHH:MM[:SS] (date+time).
+  const deadline = typeof body.deadline === "string" && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$/.test(body.deadline)
     ? body.deadline : null;
 
   if (!projectId || !title) {

@@ -1,22 +1,7 @@
 "use client";
 import type { CardWithMeta, Stage } from "@/lib/types";
 import { STAGES, STAGE_LABELS } from "@/lib/types";
-
-// Day-countdown chip. Pure days, colored by severity.
-//   future:  5d  (green when plenty of time, amber when ≤7)
-//   today:   0d  (amber)
-//   overdue: -3d (red)
-function deadlineStatus(d: string | null): { label: string; cls: string } | null {
-  if (!d) return null;
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const due = new Date(d + "T00:00:00");
-  const days = Math.round((due.getTime() - today.getTime()) / 86400000);
-
-  if (days < 0)   return { label: `${days}d`, cls: "bg-red-100 text-red-700" };
-  if (days === 0) return { label: `0d`,       cls: "bg-amber-100 text-amber-800" };
-  if (days <= 7)  return { label: `${days}d`, cls: "bg-amber-100 text-amber-800" };
-  return                  { label: `${days}d`, cls: "bg-emerald-50 text-emerald-700" };
-}
+import { deadlineCountdown } from "@/lib/deadline";
 
 export default function KanbanCard({
   card,
@@ -31,7 +16,7 @@ export default function KanbanCard({
   const idx = STAGES.indexOf(card.stage as Stage);
   const prev = idx > 0 ? STAGES[idx - 1] : null;
   const next = idx < STAGES.length - 1 ? STAGES[idx + 1] : null;
-  const dl = deadlineStatus(card.deadline);
+  const dl = deadlineCountdown(card.deadline);
 
   return (
     <div
@@ -70,6 +55,7 @@ export default function KanbanCard({
         <div className="flex items-center gap-2 text-xs text-slate-500">
           {card.comment_count > 0 && <span>💬 {card.comment_count}</span>}
           {card.attachment_count > 0 && <span>📎 {card.attachment_count}</span>}
+          {card.collaborator_count > 0 && <span title={`${card.collaborator_count} collaborator${card.collaborator_count === 1 ? "" : "s"}`}>👥 {card.collaborator_count}</span>}
           {card.assignee_name && (
             <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
               {card.assignee_name}

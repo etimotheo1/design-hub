@@ -15,10 +15,13 @@ const STAGE_PILL: Record<Stage, string> = {
   ship: "bg-emerald-100 text-emerald-900",
 };
 
+// Pipeline shows just text-color countdown, no chip background.
 function deadlineCountdown(d: string | null): { label: string; cls: string } | null {
   if (!d) return null;
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const due = new Date(d + "T00:00:00");
+  const due = new Date(d.length === 10 ? `${d}T00:00:00` : d);
+  if (Number.isNaN(due.getTime())) return null;
+  due.setHours(0, 0, 0, 0);
   const days = Math.round((due.getTime() - today.getTime()) / 86400000);
   if (days < 0)   return { label: `${days}d`, cls: "text-red-700" };
   if (days === 0) return { label: "0d",       cls: "text-amber-700" };

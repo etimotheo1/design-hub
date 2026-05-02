@@ -147,11 +147,16 @@ export default function IdeaForm({ projects }: { projects: Project[] }) {
       <div>
         <label className="block text-sm font-medium text-slate-700">Target deadline (optional)</label>
         <input
-          type="date"
+          type="datetime-local"
           value={deadline}
-          onChange={(e) => setDeadline(e.target.value)}
+          onChange={(e) => {
+            let v = e.target.value;
+            if (v && !deadline && v.endsWith("T00:00")) v = v.slice(0, 11) + "14:00";
+            setDeadline(v);
+          }}
           className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
         />
+        <p className="text-xs text-slate-400 mt-1">Defaults to 2:00 PM if you only pick a date.</p>
       </div>
 
       <div>
