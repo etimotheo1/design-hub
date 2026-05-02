@@ -235,11 +235,13 @@ function initSchema(db: DatabaseSync) {
 
   // Mark each individual table as "no longer auto-seedable" if it has any data.
   // This is permanent: once you've added or deleted anything in a table, it's
-  // your table and we never touch it again.
-  const setMarker = db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES (?, datetime('now'))`);
-  if (counts.projects > 0)   setMarker.run("seeded_projects",   "noop");
-  if (counts.categories > 0) setMarker.run("seeded_categories", "noop");
-  if (counts.cardTypes > 0)  setMarker.run("seeded_card_types", "noop");
+  // your table and we never touch it again. Statement has TWO placeholders
+  // (key, value) to match the two args we pass.
+  const setMarker = db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)`);
+  const now = new Date().toISOString();
+  if (counts.projects > 0)   setMarker.run("seeded_projects",   `noop:${now}`);
+  if (counts.categories > 0) setMarker.run("seeded_categories", `noop:${now}`);
+  if (counts.cardTypes > 0)  setMarker.run("seeded_card_types", `noop:${now}`);
 
   if (!totallyEmpty) return;
 
@@ -247,9 +249,9 @@ function initSchema(db: DatabaseSync) {
   seedProjectDefaults(db);
   seedCategoryDefaults(db);
   seedCardTypeDefaults(db);
-  setMarker.run("seeded_projects",   "v1");
-  setMarker.run("seeded_categories", "v1");
-  setMarker.run("seeded_card_types", "v1");
+  setMarker.run("seeded_projects",   `v1:${now}`);
+  setMarker.run("seeded_categories", `v1:${now}`);
+  setMarker.run("seeded_card_types", `v1:${now}`);
 }
 
 // Exported so an admin can manually restore defaults via /api/admin/restore-defaults.
