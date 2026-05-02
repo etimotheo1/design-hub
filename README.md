@@ -90,3 +90,4 @@ See **[DEPLOY.md](./DEPLOY.md)** for the full guide — push to a private GitHub
 - Tailwind classes are deliberately simple — no design system dependency, easy to restyle when integrating with etasks' design language.
 - Drag-and-drop uses native HTML5 (no `@dnd-kit` dependency for v1) — replace with a richer library when adding intra-column reordering.
 # design-hub
+# design-hub
