@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { getCurrentUser } from "@/lib/auth";
 import { all, get, run } from "@/lib/db";
+import { isEmailConfigured, sendInvitationEmail } from "@/lib/email";
 import type { Invitation, User } from "@/lib/types";
 
 const INVITATION_DAYS = 14;
@@ -59,6 +60,24 @@ export async function POST(req: NextRequest) {
     [token, cleanEmail, cleanName, cleanRole, me.id, expiresAt]
   );
 
+  // Try sending email if Resend is configured. We don't fail the whole request
+  // if email sending fails — the admin can still copy the link manually.
+  let emailStatus: "sent" | "skipped" | "failed" = "skipped";
+  let emailError: string | undefined;
+  if (isEmailConfigured()) {
+    const baseUrl = process.env.APP_BASE_URL?.replace(/\/$/, "") || new URL(req.url).origin;
+    const inviteUrl = `${baseUrl}/accept-invite/${token}`;
+    const result = await sendInvitationEmail({
+      to: cleanEmail,
+      displayName: cleanName,
+      inviteUrl,
+      invitedByName: me.display_name,
+      expiresAt,
+    });
+    if (result.ok) emailStatus = "sent";
+    else { emailStatus = "failed"; emailError = result.error; }
+  }
+
   return NextResponse.json({
     ok: true,
     invitation: {
@@ -68,5 +87,7 @@ export async function POST(req: NextRequest) {
       role: cleanRole,
       expires_at: expiresAt,
     },
+    email_status: emailStatus,
+    email_error: emailError,
   });
 }

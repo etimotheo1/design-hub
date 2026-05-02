@@ -8,6 +8,8 @@ type IssuedInvite = {
   display_name: string;
   role: User["role"];
   expires_at: string;
+  email_status?: "sent" | "skipped" | "failed";
+  email_error?: string;
 };
 
 type PendingInvite = Invitation & { invited_by_name: string };
@@ -43,7 +45,7 @@ export default function UsersAdmin({ currentUserId }: { currentUserId: number })
     const data = await res.json();
     setSaving(false);
     if (!data.ok) { setError(data.error); return; }
-    setIssued(data.invitation);
+    setIssued({ ...data.invitation, email_status: data.email_status, email_error: data.email_error });
     setEmail(""); setDisplayName(""); setRole("tech");
     load();
   }
@@ -131,9 +133,16 @@ export default function UsersAdmin({ currentUserId }: { currentUserId: number })
             <div>
               <h3 className="font-semibold text-emerald-900">Invitation link ready</h3>
               <p className="text-sm text-emerald-800 mt-1">
-                Send this link to <span className="font-medium">{issued.display_name}</span> via WhatsApp or email.
-                They'll set their own password — no need to share credentials.
+                {issued.email_status === "sent"
+                  ? <>An email was sent to <span className="font-medium">{issued.email}</span>. You can also share the link below directly.</>
+                  : <>Send this link to <span className="font-medium">{issued.display_name}</span> via WhatsApp or email — no email service is set up yet, so the system can't send it for you.</>
+                }
               </p>
+              {issued.email_status === "failed" && (
+                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-2">
+                  Email send failed: {issued.email_error}. The link below still works.
+                </p>
+              )}
             </div>
             <button onClick={() => setIssued(null)} className="text-emerald-700 text-sm">Dismiss</button>
           </div>

@@ -38,15 +38,14 @@ export default function TopBar({ user }: { user: SessionUser }) {
       <div className="px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
         <Logo />
 
-        <nav className="flex items-center gap-1">
+        <nav className="flex items-center gap-1 flex-wrap">
+          {tab("/dashboard", "Dashboard")}
           {tab("/bucketlist", "Bucketlist")}
           {tab("/board", "Board")}
           {tab("/pipeline", "Pipeline")}
-          {tab("/dashboard", "Dashboard")}
-          {tab("/submit", "Submit Idea")}
           {tab("/projects", "Projects")}
-          {user.role === "admin" && tab("/admin/users", "Users")}
-          {user.role === "admin" && tab("/admin/taxonomy", "Tags")}
+          {tab("/approvals", "Approvals")}
+          {user.role === "admin" && tab("/settings", "Settings")}
         </nav>
 
         {/* Spacer + change-password shortcut */}
