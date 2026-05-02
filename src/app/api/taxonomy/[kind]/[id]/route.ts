@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { get, run } from "@/lib/db";
+import { isValidColor } from "@/lib/colors";
 
-function config(kind: string): { table: string; cardField: string } | null {
-  if (kind === "categories") return { table: "categories", cardField: "category" };
-  if (kind === "card_types") return { table: "card_types", cardField: "card_type" };
+function config(kind: string): { table: string; cardField: string; supportsColor: boolean } | null {
+  if (kind === "categories") return { table: "categories", cardField: "category",  supportsColor: true };
+  if (kind === "card_types") return { table: "card_types", cardField: "card_type", supportsColor: false };
   return null;
 }
 
@@ -35,6 +36,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { kind: stri
         return NextResponse.json({ ok: false, error: "Could not rename." }, { status: 500 });
       }
     }
+  }
+  if (cfg.supportsColor && (body.color === null || isValidColor(body.color))) {
+    run(`UPDATE ${cfg.table} SET color = ? WHERE id = ?`, [body.color || null, id]);
   }
   if (typeof body.archived === "number") {
     run(`UPDATE ${cfg.table} SET archived = ? WHERE id = ?`, [body.archived ? 1 : 0, id]);

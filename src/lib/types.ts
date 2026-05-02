@@ -24,6 +24,7 @@ export type CardType = string;
 export interface TaxonomyItem {
   id: number;
   name: string;
+  color: string | null;
   archived: number;
   sort_order: number;
   created_at: string;
@@ -43,6 +44,7 @@ export interface Project {
   id: number;
   name: string;
   description: string | null;
+  color: string | null; // ColorToken (see lib/colors.ts) or null
   archived: number; // SQLite bool: 0/1
   created_at: string;
 }

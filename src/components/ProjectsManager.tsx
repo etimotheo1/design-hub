@@ -1,15 +1,19 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { Project } from "@/lib/types";
+import { colorClasses, type ColorToken } from "@/lib/colors";
+import ColorPicker from "./ColorPicker";
 
 export default function ProjectsManager({ isAdmin }: { isAdmin: boolean }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [color, setColor] = useState<ColorToken | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const [editDesc, setEditDesc] = useState("");
+  const [editColor, setEditColor] = useState<ColorToken | null>(null);
 
   async function load() {
     const res = await fetch("/api/projects");
@@ -25,11 +29,11 @@ export default function ProjectsManager({ isAdmin }: { isAdmin: boolean }) {
     const res = await fetch("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, description }),
+      body: JSON.stringify({ name, description, color }),
     });
     const data = await res.json();
     if (!data.ok) { setError(data.error); return; }
-    setName(""); setDescription("");
+    setName(""); setDescription(""); setColor(null);
     load();
   }
 
@@ -37,13 +41,14 @@ export default function ProjectsManager({ isAdmin }: { isAdmin: boolean }) {
     setEditingId(p.id);
     setEditName(p.name);
     setEditDesc(p.description || "");
+    setEditColor((p.color as ColorToken | null) ?? null);
   }
 
   async function saveEdit(id: number) {
     await fetch(`/api/projects/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: editName, description: editDesc }),
+      body: JSON.stringify({ name: editName, description: editDesc, color: editColor }),
     });
     setEditingId(null);
     load();
@@ -83,6 +88,10 @@ export default function ProjectsManager({ isAdmin }: { isAdmin: boolean }) {
             rows={2}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
+          <div>
+            <span className="text-xs text-slate-500 block mb-1.5">Color</span>
+            <ColorPicker value={color} onChange={setColor} />
+          </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex justify-end">
             <button type="submit" className="text-sm px-3 py-1.5 rounded-lg bg-brand text-white hover:bg-slate-800">
@@ -111,6 +120,10 @@ export default function ProjectsManager({ isAdmin }: { isAdmin: boolean }) {
                   rows={2}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                 />
+                <div>
+                  <span className="text-xs text-slate-500 block mb-1.5">Color</span>
+                  <ColorPicker value={editColor} onChange={setEditColor} />
+                </div>
                 <div className="flex gap-2 justify-end">
                   <button onClick={() => setEditingId(null)} className="text-sm px-3 py-1.5 rounded-lg hover:bg-slate-100">Cancel</button>
                   <button onClick={() => saveEdit(p.id)} className="text-sm px-3 py-1.5 rounded-lg bg-brand text-white hover:bg-slate-800">Save</button>
@@ -118,9 +131,12 @@ export default function ProjectsManager({ isAdmin }: { isAdmin: boolean }) {
               </div>
             ) : (
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h3 className="font-medium text-slate-900">{p.name}</h3>
-                  {p.description && <p className="text-sm text-slate-500 mt-0.5">{p.description}</p>}
+                <div className="min-w-0 flex items-start gap-3">
+                  <span className={`mt-1.5 h-3 w-3 rounded-full flex-shrink-0 ${colorClasses(p.color).dot}`}></span>
+                  <div>
+                    <h3 className="font-medium text-slate-900">{p.name}</h3>
+                    {p.description && <p className="text-sm text-slate-500 mt-0.5">{p.description}</p>}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <button onClick={() => startEdit(p)} className="text-sm text-slate-600 hover:text-slate-900">Edit</button>

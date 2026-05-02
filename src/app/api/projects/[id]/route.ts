@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { run } from "@/lib/db";
+import { isValidColor } from "@/lib/colors";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const user = getCurrentUser();
@@ -18,6 +19,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (typeof body.description === "string" || body.description === null) {
     fields.push("description = ?");
     values.push(body.description?.trim() || null);
+  }
+  if (body.color === null || isValidColor(body.color)) {
+    fields.push("color = ?");
+    values.push(body.color || null);
   }
   if (typeof body.archived === "number") {
     fields.push("archived = ?");

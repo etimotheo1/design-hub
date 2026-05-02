@@ -51,6 +51,7 @@ function initSchema(db: DatabaseSync) {
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       name        TEXT NOT NULL UNIQUE,
       description TEXT,
+      color       TEXT,
       archived    INTEGER NOT NULL DEFAULT 0,
       created_at  TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -120,6 +121,7 @@ function initSchema(db: DatabaseSync) {
     CREATE TABLE IF NOT EXISTS categories (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       name       TEXT NOT NULL UNIQUE,
+      color      TEXT,
       archived   INTEGER NOT NULL DEFAULT 0,
       sort_order INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -172,6 +174,24 @@ function initSchema(db: DatabaseSync) {
   if (!tableHasColumn(db, "users", "must_change_password")) {
     db.exec(`ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0`);
   }
+  if (!tableHasColumn(db, "projects", "color")) {
+    db.exec(`ALTER TABLE projects ADD COLUMN color TEXT`);
+    // Backfill colors for the seeded projects so the Bucketlist looks right
+    // out of the box. User can change them anytime.
+    db.exec(`UPDATE projects SET color = 'emerald' WHERE name = 'Tanzania Market Leadership' AND color IS NULL`);
+    db.exec(`UPDATE projects SET color = 'sky'     WHERE name = 'Kenya Expansion'             AND color IS NULL`);
+    db.exec(`UPDATE projects SET color = 'amber'   WHERE name = 'Rice Pilot'                   AND color IS NULL`);
+    db.exec(`UPDATE projects SET color = 'indigo'  WHERE name = 'etasks Platform'              AND color IS NULL`);
+  }
+  if (!tableHasColumn(db, "categories", "color")) {
+    db.exec(`ALTER TABLE categories ADD COLUMN color TEXT`);
+    db.exec(`UPDATE categories SET color = 'blue'    WHERE name = 'Distribution' AND color IS NULL`);
+    db.exec(`UPDATE categories SET color = 'emerald' WHERE name = 'Product'      AND color IS NULL`);
+    db.exec(`UPDATE categories SET color = 'indigo'  WHERE name = 'Tech'         AND color IS NULL`);
+    db.exec(`UPDATE categories SET color = 'pink'    WHERE name = 'Marketing'    AND color IS NULL`);
+    db.exec(`UPDATE categories SET color = 'amber'   WHERE name = 'Operations'   AND color IS NULL`);
+    db.exec(`UPDATE categories SET color = 'slate'   WHERE name = 'Other'        AND color IS NULL`);
+  }
 
   // One-time heal: any admin stuck with the forced-change flag gets cleared.
   // (Earlier versions seeded the admin with must_change_password = 1, which
@@ -207,18 +227,25 @@ function initSchema(db: DatabaseSync) {
   }
 
   // Brand-new database — seed defaults once.
-  const seedProject = db.prepare(`INSERT OR IGNORE INTO projects (name, description) VALUES (?, ?)`);
-  const defaultProjects: Array<[string, string]> = [
-    ["Tanzania Market Leadership", "Defend and deepen our position in Tanzania."],
-    ["Kenya Expansion", "Evaluate and prepare entry strategy for Kenya."],
-    ["Rice Pilot", "Pilot and validate the rice product line."],
-    ["etasks Platform", "Long-term: evolve into a tech company. Design Hub itself feeds into etasks."],
+  const seedProject = db.prepare(`INSERT OR IGNORE INTO projects (name, description, color) VALUES (?, ?, ?)`);
+  const defaultProjects: Array<[string, string, string]> = [
+    ["Tanzania Market Leadership", "Defend and deepen our position in Tanzania.", "emerald"],
+    ["Kenya Expansion",            "Evaluate and prepare entry strategy for Kenya.", "sky"],
+    ["Rice Pilot",                 "Pilot and validate the rice product line.", "amber"],
+    ["etasks Platform",            "Long-term: evolve into a tech company. Design Hub itself feeds into etasks.", "indigo"],
   ];
   defaultProjects.forEach((row) => seedProject.run(...row));
 
-  const seedCategory = db.prepare(`INSERT OR IGNORE INTO categories (name, sort_order) VALUES (?, ?)`);
-  const defaultCategories = ["Distribution", "Product", "Tech", "Marketing", "Operations", "Other"];
-  defaultCategories.forEach((name, i) => seedCategory.run(name, i));
+  const seedCategory = db.prepare(`INSERT OR IGNORE INTO categories (name, color, sort_order) VALUES (?, ?, ?)`);
+  const defaultCategories: Array<[string, string]> = [
+    ["Distribution", "blue"],
+    ["Product",      "emerald"],
+    ["Tech",         "indigo"],
+    ["Marketing",    "pink"],
+    ["Operations",   "amber"],
+    ["Other",        "slate"],
+  ];
+  defaultCategories.forEach(([name, color], i) => seedCategory.run(name, color, i));
 
   const seedType = db.prepare(`INSERT OR IGNORE INTO card_types (name, sort_order) VALUES (?, ?)`);
   const defaultTypes = ["New initiative", "Improvement", "Fix", "Research"];

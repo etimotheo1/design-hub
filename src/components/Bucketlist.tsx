@@ -1,11 +1,14 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import type { CardWithMeta, Project, SessionUser, TaxonomyItem } from "@/lib/types";
+import { colorClasses } from "@/lib/colors";
 import CardModal from "./CardModal";
 
 const LS_PROJECT = "designhub.bucketlist.project";
 const LS_CATEGORY = "designhub.bucketlist.category";
 const LS_TYPE = "designhub.bucketlist.cardType";
+
+type Suggestion = { category: string | null; card_type: string | null; reason?: string } | null;
 
 export default function Bucketlist({ currentUser }: { currentUser: SessionUser }) {
   const [ideas, setIdeas] = useState<CardWithMeta[]>([]);
@@ -14,17 +17,23 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
   const [cardTypes, setCardTypes] = useState<TaxonomyItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Quick-add form state
+  // Quick-add state
   const [title, setTitle] = useState("");
   const [imagined, setImagined] = useState("");
-  const [projectId, setProjectId] = useState<number | "">("");
+  const [projectId, setProjectId] = useState<number | null>(null);
   const [category, setCategory] = useState<string>("");
   const [cardType, setCardType] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Filter
+  // AI suggestion
+  const [aiAvailable, setAiAvailable] = useState<boolean | null>(null);
+  const [suggestion, setSuggestion] = useState<Suggestion>(null);
+  const [suggesting, setSuggesting] = useState(false);
+
+  // List filters
   const [filterProject, setFilterProject] = useState<"all" | number>("all");
+  const [search, setSearch] = useState("");
 
   const [openCardId, setOpenCardId] = useState<number | null>(null);
 
@@ -37,10 +46,9 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
     if (c.ok) setIdeas(c.cards.filter((x: CardWithMeta) => x.stage === "idea"));
     if (p.ok) {
       setProjects(p.projects);
-      // Restore last-used project from localStorage, or default to first.
-      const savedProj = typeof window !== "undefined" ? localStorage.getItem(LS_PROJECT) : null;
-      const initial = savedProj ? Number(savedProj) : p.projects[0]?.id ?? "";
-      if (p.projects.find((pr: Project) => pr.id === initial)) setProjectId(initial);
+      const saved = typeof window !== "undefined" ? localStorage.getItem(LS_PROJECT) : null;
+      const initial = saved ? Number(saved) : (p.projects[0]?.id ?? null);
+      if (initial && p.projects.find((pr: Project) => pr.id === initial)) setProjectId(initial);
       else if (p.projects.length) setProjectId(p.projects[0].id);
     }
     if (t.ok) {
@@ -57,17 +65,34 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
   }
   useEffect(() => { load(); }, []);
 
+  // Per-project counts for the cards row.
+  const ideaCountByProject = useMemo(() => {
+    const m: Record<number, number> = {};
+    for (const i of ideas) m[i.project_id] = (m[i.project_id] || 0) + 1;
+    return m;
+  }, [ideas]);
+
   const filtered = useMemo(() => {
     let list = ideas.slice();
     if (filterProject !== "all") list = list.filter((c) => c.project_id === filterProject);
-    // Newest first.
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter((c) =>
+        c.title.toLowerCase().includes(q) ||
+        (c.imagined_outcome ?? "").toLowerCase().includes(q) ||
+        (c.project_name ?? "").toLowerCase().includes(q) ||
+        (c.category ?? "").toLowerCase().includes(q) ||
+        (c.card_type ?? "").toLowerCase().includes(q) ||
+        (c.created_by_name ?? "").toLowerCase().includes(q)
+      );
+    }
     list.sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0));
     return list;
-  }, [ideas, filterProject]);
+  }, [ideas, filterProject, search]);
 
   async function quickAdd(e: React.FormEvent) {
     e.preventDefault();
-    if (!projectId) { setError("Pick a project."); return; }
+    if (!projectId) { setError("Pick a project first."); return; }
     if (!title.trim()) return;
     setSaving(true); setError(null);
 
@@ -87,17 +112,44 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
     setSaving(false);
     if (!data.ok) { setError(data.error || "Could not add."); return; }
 
-    // Remember choices so the next quick-add doesn't ask again.
     if (typeof window !== "undefined") {
       localStorage.setItem(LS_PROJECT, String(projectId));
       if (category) localStorage.setItem(LS_CATEGORY, category);
       if (cardType) localStorage.setItem(LS_TYPE, cardType);
     }
 
-    // Clear title + imagined; keep project/category/type for next entry.
     setTitle("");
     setImagined("");
+    setSuggestion(null);
     load();
+  }
+
+  // Ask Claude to suggest a Category and Type once the user has typed a title.
+  async function askAI() {
+    if (!title.trim()) return;
+    setSuggesting(true);
+    try {
+      const res = await fetch("/api/ai/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, imagined }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setAiAvailable(data.available);
+        if (data.suggestion) setSuggestion(data.suggestion);
+        else setSuggestion(null);
+      }
+    } finally {
+      setSuggesting(false);
+    }
+  }
+
+  function applySuggestion() {
+    if (!suggestion) return;
+    if (suggestion.category) setCategory(suggestion.category);
+    if (suggestion.card_type) setCardType(suggestion.card_type);
+    setSuggestion(null);
   }
 
   async function promote(id: number) {
@@ -120,131 +172,247 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
     return "just now";
   }
 
+  const selectedProject = projects.find((p) => p.id === projectId);
+  const selectedProjectColor = colorClasses(selectedProject?.color);
+
   return (
-    <div className="space-y-4">
-      {/* Quick-add card */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-        <form onSubmit={quickAdd} className="space-y-3">
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="What's the idea? (press Enter to add)"
-            className="w-full text-base rounded-lg border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-accent"
-            required
-            autoFocus
-          />
-          <textarea
-            value={imagined}
-            onChange={(e) => setImagined(e.target.value)}
-            placeholder="What do you imagine? (optional)"
-            rows={2}
-            className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-accent"
-          />
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <select
-              value={projectId}
-              onChange={(e) => setProjectId(Number(e.target.value))}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
-              required
-            >
-              <option value="">Project…</option>
-              {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
-            >
-              <option value="">Category…</option>
-              {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
-            </select>
-            <select
-              value={cardType}
-              onChange={(e) => setCardType(e.target.value)}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
-            >
-              <option value="">Type…</option>
-              {cardTypes.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
-            </select>
+    <div className="space-y-6">
+      {/* Step 1: Project picker */}
+      <div>
+        <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-3">1. Pick a project</div>
+        {projects.length === 0 ? (
+          <p className="text-sm text-slate-400 italic">No projects yet — add one in Settings → Projects.</p>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {projects.map((p) => {
+              const cc = colorClasses(p.color);
+              const selected = p.id === projectId;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setProjectId(p.id)}
+                  className={`text-left bg-white rounded-xl p-4 transition relative
+                    ${selected
+                      ? `border-2 ${cc.cardSelected} shadow-md`
+                      : "border border-slate-200 hover:-translate-y-0.5 hover:shadow-md"}`}
+                >
+                  {selected && (
+                    <span className={`absolute top-2 right-2 h-2 w-2 rounded-full ${cc.cardSelectedDot}`}></span>
+                  )}
+                  <div className={`h-1.5 w-10 rounded-full ${cc.stripe} mb-3`}></div>
+                  <div className="font-semibold text-slate-900 text-sm leading-tight">{p.name}</div>
+                  {p.description && (
+                    <div className="text-xs text-slate-500 mt-1 line-clamp-2">{p.description}</div>
+                  )}
+                  <div className="text-[11px] text-slate-400 mt-2">
+                    {ideaCountByProject[p.id] ?? 0} {(ideaCountByProject[p.id] ?? 0) === 1 ? "idea" : "ideas"} waiting
+                  </div>
+                </button>
+              );
+            })}
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-slate-400">
-              Project, Category, and Type are remembered for your next entry — just type and Enter.
-            </p>
-            <button
-              type="submit"
-              disabled={saving}
-              className="text-sm px-4 py-2 rounded-lg bg-brand-ink text-white hover:bg-slate-800 disabled:opacity-50"
-            >
-              {saving ? "Adding…" : "Add to bucketlist"}
-            </button>
-          </div>
-        </form>
-      </div>
-
-      {/* List header + filter */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="font-semibold text-slate-900">
-          {filtered.length} {filtered.length === 1 ? "idea" : "ideas"} waiting
-        </h2>
-        <label className="text-xs text-slate-600 flex items-center gap-1.5">
-          <span>Project:</span>
-          <select
-            value={String(filterProject)}
-            onChange={(e) => setFilterProject(e.target.value === "all" ? "all" : Number(e.target.value))}
-            className="rounded-lg border border-slate-300 px-2 py-1 text-sm bg-white"
-          >
-            <option value="all">All projects</option>
-            {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </label>
-      </div>
-
-      {/* Ideas list */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100">
-        {loading && <p className="p-6 text-sm text-slate-400">Loading…</p>}
-        {!loading && filtered.length === 0 && (
-          <p className="p-8 text-sm text-slate-400 italic text-center">
-            No ideas yet — drop one in the box above.
-          </p>
         )}
-        {!loading && filtered.map((c) => (
-          <div key={c.id} className="p-4 sm:p-5 hover:bg-slate-50 transition group">
-            <div className="flex items-start justify-between gap-3">
+      </div>
+
+      {/* Step 2: Idea capture */}
+      <div>
+        <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-3">2. What's the idea?</div>
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+          <form onSubmit={quickAdd} className="space-y-3">
+            <input
+              value={title}
+              onChange={(e) => { setTitle(e.target.value); if (suggestion) setSuggestion(null); }}
+              onBlur={() => { if (title.trim() && aiAvailable !== false && !suggestion) askAI(); }}
+              placeholder="Describe the idea in one line…"
+              className="w-full text-base rounded-lg border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              required
+              autoFocus
+            />
+            <textarea
+              value={imagined}
+              onChange={(e) => setImagined(e.target.value)}
+              placeholder="What do you imagine? (optional)"
+              rows={2}
+              className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+
+            {/* AI suggestion strip */}
+            {aiAvailable !== false && (suggesting || suggestion) && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-50 border border-indigo-200">
+                <span className="text-base">✨</span>
+                {suggesting ? (
+                  <span className="text-sm text-indigo-900">Claude is thinking…</span>
+                ) : suggestion && (suggestion.category || suggestion.card_type) ? (
+                  <>
+                    <span className="text-sm text-indigo-900 flex-1">
+                      <span className="text-indigo-600 font-medium">Suggests:</span>
+                      {suggestion.category && <> Category <span className="font-medium">{suggestion.category}</span></>}
+                      {suggestion.category && suggestion.card_type && ", "}
+                      {suggestion.card_type && <> Type <span className="font-medium">{suggestion.card_type}</span></>}
+                    </span>
+                    <button type="button" onClick={applySuggestion} className="text-xs text-indigo-700 hover:text-indigo-900 font-medium px-2 py-1">Use ✓</button>
+                    <button type="button" onClick={() => setSuggestion(null)} className="text-xs text-slate-500 hover:text-slate-800 px-2 py-1">Skip</button>
+                  </>
+                ) : null}
+              </div>
+            )}
+
+            {/* Category chips */}
+            <div>
+              <div className="text-xs text-slate-500 mb-1.5">Category (optional)</div>
+              <div className="flex flex-wrap gap-1.5">
+                {categories.map((c) => {
+                  const cc = colorClasses(c.color);
+                  const selected = category === c.name;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setCategory(selected ? "" : c.name)}
+                      className={`text-xs px-2.5 py-1 rounded-full font-medium transition
+                        ${selected ? cc.chipSelected : `${cc.chip} ${cc.chipHover}`}`}
+                    >
+                      {c.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Type chips */}
+            <div>
+              <div className="text-xs text-slate-500 mb-1.5">Type (optional)</div>
+              <div className="flex flex-wrap gap-1.5">
+                {cardTypes.map((t) => {
+                  const selected = cardType === t.name;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setCardType(selected ? "" : t.name)}
+                      className={`text-xs px-2.5 py-1 rounded-full font-medium transition
+                        ${selected
+                          ? "bg-slate-200 text-slate-900 ring-2 ring-slate-300"
+                          : "bg-slate-50 text-slate-600 hover:bg-slate-100"}`}
+                    >
+                      {t.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {error && <p className="text-sm text-red-600">{error}</p>}
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+              <span className="text-xs text-slate-400">
+                Project &amp; tags remembered for the next idea.
+              </span>
               <button
-                onClick={() => setOpenCardId(c.id)}
-                className="text-left min-w-0 flex-1"
+                type="submit"
+                disabled={saving || !projectId}
+                className={`text-sm px-4 py-2 rounded-lg text-white disabled:opacity-50 transition
+                  ${selectedProject ? `${selectedProjectColor.stripe} hover:brightness-110` : "bg-slate-900 hover:bg-slate-800"}`}
               >
-                <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <span className="text-xs text-slate-500 truncate">{c.project_name}</span>
-                  {c.category && <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700">{c.category}</span>}
-                  {c.card_type && <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">{c.card_type}</span>}
-                  <span className="text-[10px] text-slate-400 ml-auto sm:ml-0">{ageLabel(c.created_at)}</span>
-                </div>
-                <div className="text-sm font-medium text-slate-900">{c.title}</div>
-                {c.imagined_outcome && (
-                  <p className="text-xs text-slate-600 mt-1 line-clamp-2">
-                    <span className="font-medium text-slate-700">Imagined: </span>
-                    {c.imagined_outcome}
-                  </p>
-                )}
-                <div className="text-[11px] text-slate-400 mt-1.5">
-                  by {c.created_by_name}
-                  {c.comment_count > 0 && <> · 💬 {c.comment_count}</>}
-                  {c.attachment_count > 0 && <> · 📎 {c.attachment_count}</>}
-                </div>
-              </button>
-              <button
-                onClick={() => promote(c.id)}
-                className="opacity-0 group-hover:opacity-100 transition flex-shrink-0 text-xs px-2.5 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
-                title="Move to Design stage"
-              >
-                Send to Design →
+                {saving ? "Adding…" : (selectedProject ? `Add to ${selectedProject.name}` : "Add to bucketlist")}
               </button>
             </div>
+          </form>
+        </div>
+      </div>
+
+      {/* Ideas waiting */}
+      <div>
+        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <h2 className="text-xs uppercase tracking-wider text-slate-500 font-semibold">
+            Ideas waiting · {filtered.length}{filtered.length !== ideas.length && <> of {ideas.length}</>}
+          </h2>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search ideas…"
+                className="text-sm rounded-lg border border-slate-300 px-3 py-1.5 pl-8 bg-white w-48 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-sm"
+                  title="Clear search"
+                >×</button>
+              )}
+            </div>
+            <select
+              value={String(filterProject)}
+              onChange={(e) => setFilterProject(e.target.value === "all" ? "all" : Number(e.target.value))}
+              className="text-xs rounded-lg border border-slate-300 px-2 py-1.5 bg-white"
+            >
+              <option value="all">All projects</option>
+              {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
           </div>
-        ))}
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100">
+          {loading && <p className="p-6 text-sm text-slate-400">Loading…</p>}
+          {!loading && filtered.length === 0 && (
+            <p className="p-8 text-sm text-slate-400 italic text-center">
+              {search ? "No ideas match your search." : "No ideas yet — drop one above."}
+            </p>
+          )}
+          {!loading && filtered.map((c) => {
+            const projectColor = projects.find((p) => p.id === c.project_id)?.color;
+            const projDot = colorClasses(projectColor).dot;
+            const catColor = categories.find((cat) => cat.name === c.category)?.color;
+            const catCC = colorClasses(catColor);
+            return (
+              <div key={c.id} className="p-4 hover:bg-slate-50 transition group">
+                <div className="flex items-start justify-between gap-3">
+                  <button
+                    onClick={() => setOpenCardId(c.id)}
+                    className="text-left min-w-0 flex-1"
+                  >
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className="inline-flex items-center gap-1.5 text-xs">
+                        <span className={`h-2 w-2 rounded-full ${projDot}`}></span>
+                        <span className="text-slate-700 font-medium">{c.project_name}</span>
+                      </span>
+                      {c.category && (
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${catCC.chip}`}>{c.category}</span>
+                      )}
+                      {c.card_type && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-medium">{c.card_type}</span>
+                      )}
+                      <span className="text-[10px] text-slate-400 ml-auto">{ageLabel(c.created_at)}</span>
+                    </div>
+                    <div className="text-sm font-medium text-slate-900">{c.title}</div>
+                    {c.imagined_outcome && (
+                      <p className="text-xs text-slate-600 mt-1 line-clamp-2">
+                        <span className="font-medium text-slate-700">Imagined: </span>
+                        {c.imagined_outcome}
+                      </p>
+                    )}
+                    <div className="text-[11px] text-slate-400 mt-1.5">
+                      by {c.created_by_name}
+                      {c.comment_count > 0 && <> · 💬 {c.comment_count}</>}
+                      {c.attachment_count > 0 && <> · 📎 {c.attachment_count}</>}
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => promote(c.id)}
+                    className="opacity-0 group-hover:opacity-100 transition flex-shrink-0 text-xs px-2.5 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                    title="Move to Design stage"
+                  >
+                    Send to Design →
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {openCardId !== null && (
