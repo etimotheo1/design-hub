@@ -173,6 +173,12 @@ function initSchema(db: DatabaseSync) {
     db.exec(`ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0`);
   }
 
+  // One-time heal: any admin stuck with the forced-change flag gets cleared.
+  // (Earlier versions seeded the admin with must_change_password = 1, which
+  // could repeatedly send the admin to /change-password. The seeded admin
+  // should sign in normally; password changes happen via the top-nav link.)
+  db.exec(`UPDATE users SET must_change_password = 0 WHERE role = 'admin' AND must_change_password = 1`);
+
   // Backfill stage_history for any pre-existing cards that have no entries yet,
   // so dashboard analytics work from the moment the migration runs.
   db.exec(`

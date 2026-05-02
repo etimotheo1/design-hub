@@ -168,9 +168,9 @@ export function getSessionCookieName(): string {
 }
 
 // Bootstrap: ensure at least one admin user exists. Called on first DB access
-// from the home page so the user has something to log in with.
-// The seeded password ("changeme") is intentionally weak — the user is forced
-// to change it on first login via the must_change_password flag.
+// from the home page so the user has something to log in with. Admin is NOT
+// forced through the change-password modal — they can use the "Password"
+// link in the top nav whenever they want.
 export async function ensureAdminSeed() {
   getDb();
   const anyAdmin = get<{ c: number }>(`SELECT COUNT(*) AS c FROM users WHERE role = 'admin'`);
@@ -179,7 +179,7 @@ export async function ensureAdminSeed() {
   const hash = await hashPassword("changeme");
   run(
     `INSERT OR IGNORE INTO users (username, password_hash, display_name, role, must_change_password)
-     VALUES (?, ?, ?, ?, 1)`,
+     VALUES (?, ?, ?, ?, 0)`,
     ["elia", hash, "Elia", "admin"]
   );
 }
