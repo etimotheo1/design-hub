@@ -44,6 +44,12 @@ export default function SettingsPage() {
               description="Change your own password."
               icon="🔒"
             />
+            <Card
+              href="/admin/diagnostics"
+              title="Diagnostics"
+              description="DB path, size, row counts. Verify your data is actually persisting."
+              icon="🩺"
+            />
           </div>
 
           <div className="mt-8 bg-white rounded-xl border border-slate-200 p-5 text-sm text-slate-600">

@@ -4,10 +4,30 @@ import fs from "fs";
 
 // SQLite via Node's built-in node:sqlite module (stable in Node 23+).
 // No native compilation, no version-mismatch errors with new Node releases.
-// The DB file lives in ./data/pm.db at the repo root.
+//
+// IMPORTANT — persistence:
+// The DB lives at $DATA_DIR/pm.db. On Railway, you MUST mount a persistent
+// volume at the same path you set DATA_DIR to (or at $RAILWAY_VOLUME_MOUNT_PATH
+// if that env is set), otherwise the DB file gets wiped on every redeploy.
+//
+// Path resolution priority:
+//   1. DATA_DIR env var (explicit path, e.g. /app/data)
+//   2. RAILWAY_VOLUME_MOUNT_PATH env var (Railway sets this when a volume mounts)
+//   3. ./data relative to the working directory (fallback for local dev)
 
-const DATA_DIR = path.resolve(process.cwd(), "data");
+function resolveDataDir(): string {
+  if (process.env.DATA_DIR) return process.env.DATA_DIR;
+  if (process.env.RAILWAY_VOLUME_MOUNT_PATH) return process.env.RAILWAY_VOLUME_MOUNT_PATH;
+  return path.resolve(process.cwd(), "data");
+}
+
+const DATA_DIR = resolveDataDir();
 const DB_PATH = path.join(DATA_DIR, "pm.db");
+
+// Exported so /api/admin/diagnostics can read them without re-deriving paths.
+export function dbPaths() {
+  return { DATA_DIR, DB_PATH, cwd: process.cwd() };
+}
 
 type RunResult = { lastInsertRowid: number | bigint; changes: number | bigint };
 
@@ -20,11 +40,30 @@ export function getDb(): DatabaseSync {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
 
+  const dbExistedBefore = fs.existsSync(DB_PATH);
+  const dbStatsBefore = dbExistedBefore ? fs.statSync(DB_PATH) : null;
+
   const db = new DatabaseSync(DB_PATH);
   db.exec("PRAGMA journal_mode = WAL");
   db.exec("PRAGMA foreign_keys = ON");
 
   initSchema(db);
+
+  // Loud, helpful startup log — visible in Railway deploy logs. If the DB
+  // file is "new" on every deploy, the volume isn't catching writes.
+  try {
+    const userCount      = (db.prepare(`SELECT COUNT(*) AS c FROM users`).get()      as { c: number } | undefined)?.c ?? 0;
+    const projectCount   = (db.prepare(`SELECT COUNT(*) AS c FROM projects`).get()   as { c: number } | undefined)?.c ?? 0;
+    const cardCount      = (db.prepare(`SELECT COUNT(*) AS c FROM cards`).get()      as { c: number } | undefined)?.c ?? 0;
+    const categoryCount  = (db.prepare(`SELECT COUNT(*) AS c FROM categories`).get() as { c: number } | undefined)?.c ?? 0;
+    console.log(
+      `[design-hub] DB ready at ${DB_PATH} ` +
+      `(${dbExistedBefore ? `existing, ${dbStatsBefore?.size ?? 0} bytes` : "NEW FILE — volume may not be persisting!"}). ` +
+      `users=${userCount} projects=${projectCount} cards=${cardCount} categories=${categoryCount}.`
+    );
+  } catch {
+    // Don't crash startup just because logging failed.
+  }
 
   _db = db;
   return db;
