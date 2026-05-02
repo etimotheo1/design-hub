@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Card, Comment, Attachment, Stage, SessionUser, User, TaxonomyItem, Collaborator } from "@/lib/types";
 import { STAGES, STAGE_LABELS } from "@/lib/types";
+import DateTimePicker from "./DateTimePicker";
 
 type Loaded = {
   card: Card & { project_name: string; created_by_name: string; assignee_name: string | null };
@@ -217,11 +218,9 @@ export default function CardModal({
           </div>
           <div>
             <span className="block text-xs text-slate-500 mb-1">Deadline</span>
-            <input
-              type="datetime-local"
-              value={deadlineForInput(card.deadline)}
-              onChange={(e) => patch({ deadline: e.target.value || null })}
-              className="w-full rounded-lg border border-slate-300 px-2 py-1.5 bg-white"
+            <DateTimePicker
+              value={card.deadline}
+              onChange={(v) => patch({ deadline: v })}
             />
           </div>
         </div>

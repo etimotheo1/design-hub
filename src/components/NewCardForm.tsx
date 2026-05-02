@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import type { Project, Stage, Category, CardType, TaxonomyItem } from "@/lib/types";
 import { STAGES, STAGE_LABELS } from "@/lib/types";
+import DateTimePicker from "./DateTimePicker";
 
 export default function NewCardForm({
   projects,
@@ -24,15 +25,6 @@ export default function NewCardForm({
   const [category, setCategory] = useState<Category | "">("");
   const [cardType, setCardType] = useState<CardType | "">("");
   const [deadline, setDeadline] = useState("");
-
-  // When the user picks a date for the first time, default to 2pm. They can edit.
-  function onDeadlineChange(v: string) {
-    if (!v) { setDeadline(""); return; }
-    // datetime-local always returns "YYYY-MM-DDTHH:MM"; if the time is 00:00
-    // (browser default for blank), bump it to 14:00 unless user already changed.
-    if (!deadline && v.endsWith("T00:00")) v = v.slice(0, 11) + "14:00";
-    setDeadline(v);
-  }
   const [categories, setCategories] = useState<TaxonomyItem[]>([]);
   const [cardTypes, setCardTypes] = useState<TaxonomyItem[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -140,14 +132,8 @@ export default function NewCardForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-700">Deadline (optional)</label>
-          <input
-            type="datetime-local"
-            value={deadline}
-            onChange={(e) => onDeadlineChange(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          />
-          <p className="text-xs text-slate-400 mt-1">Defaults to 2:00 PM if you only pick a date.</p>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Deadline (optional)</label>
+          <DateTimePicker value={deadline || null} onChange={(v) => setDeadline(v ?? "")} />
         </div>
 
         <div>

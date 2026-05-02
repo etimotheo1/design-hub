@@ -28,6 +28,7 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
 
   // AI suggestion
   const [aiAvailable, setAiAvailable] = useState<boolean | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
   const [suggestion, setSuggestion] = useState<Suggestion>(null);
   const [suggesting, setSuggesting] = useState(false);
 
@@ -128,6 +129,7 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
   async function askAI() {
     if (!title.trim()) return;
     setSuggesting(true);
+    setAiError(null);
     try {
       const res = await fetch("/api/ai/suggest", {
         method: "POST",
@@ -138,8 +140,12 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
       if (data.ok) {
         setAiAvailable(data.available);
         if (data.suggestion) setSuggestion(data.suggestion);
-        else setSuggestion(null);
+        else { setSuggestion(null); if (data.error) setAiError(data.error); }
+      } else {
+        setAiError(data.error || "AI request failed");
       }
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "Network error");
     } finally {
       setSuggesting(false);
     }
@@ -232,7 +238,6 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
             <input
               value={title}
               onChange={(e) => { setTitle(e.target.value); if (suggestion) setSuggestion(null); }}
-              onBlur={() => { if (title.trim() && aiAvailable !== false && !suggestion) askAI(); }}
               placeholder="Describe the idea in one line…"
               className="w-full text-base rounded-lg border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               required
@@ -246,25 +251,44 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
               className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
 
-            {/* AI suggestion strip */}
-            {aiAvailable !== false && (suggesting || suggestion) && (
+            {/* Explicit AI button — always visible. Disabled until title typed. */}
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={askAI}
+                disabled={suggesting || !title.trim()}
+                className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span>✨</span>
+                {suggesting ? "Thinking…" : "Suggest Category & Type with AI"}
+              </button>
+              {aiAvailable === false && (
+                <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-md">
+                  AI not configured. Admin: add <span className="font-mono">ANTHROPIC_API_KEY</span> in Railway.
+                </span>
+              )}
+            </div>
+
+            {/* AI suggestion result */}
+            {suggestion && (suggestion.category || suggestion.card_type) && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-50 border border-indigo-200">
                 <span className="text-base">✨</span>
-                {suggesting ? (
-                  <span className="text-sm text-indigo-900">Claude is thinking…</span>
-                ) : suggestion && (suggestion.category || suggestion.card_type) ? (
-                  <>
-                    <span className="text-sm text-indigo-900 flex-1">
-                      <span className="text-indigo-600 font-medium">Suggests:</span>
-                      {suggestion.category && <> Category <span className="font-medium">{suggestion.category}</span></>}
-                      {suggestion.category && suggestion.card_type && ", "}
-                      {suggestion.card_type && <> Type <span className="font-medium">{suggestion.card_type}</span></>}
-                    </span>
-                    <button type="button" onClick={applySuggestion} className="text-xs text-indigo-700 hover:text-indigo-900 font-medium px-2 py-1">Use ✓</button>
-                    <button type="button" onClick={() => setSuggestion(null)} className="text-xs text-slate-500 hover:text-slate-800 px-2 py-1">Skip</button>
-                  </>
-                ) : null}
+                <span className="text-sm text-indigo-900 flex-1">
+                  <span className="text-indigo-600 font-medium">Suggests:</span>
+                  {suggestion.category && <> Category <span className="font-medium">{suggestion.category}</span></>}
+                  {suggestion.category && suggestion.card_type && ", "}
+                  {suggestion.card_type && <> Type <span className="font-medium">{suggestion.card_type}</span></>}
+                </span>
+                <button type="button" onClick={applySuggestion} className="text-xs text-indigo-700 hover:text-indigo-900 font-medium px-2 py-1">Use ✓</button>
+                <button type="button" onClick={() => setSuggestion(null)} className="text-xs text-slate-500 hover:text-slate-800 px-2 py-1">Skip</button>
               </div>
+            )}
+
+            {/* No-match feedback (AI ran but didn't suggest anything) */}
+            {!suggesting && aiAvailable && !suggestion && aiError && (
+              <p className="text-xs text-slate-500">
+                AI couldn't pick a tag from your current Categories/Types. ({aiError})
+              </p>
             )}
 
             {/* Category chips */}

@@ -58,12 +58,6 @@ export default function TopBar({ user }: { user: SessionUser }) {
               {roleLabel}
             </span>
           </div>
-          <Link
-            href="/change-password"
-            className="text-sm text-slate-500 hover:text-slate-900 transition hidden sm:inline"
-          >
-            Password
-          </Link>
           <button
             onClick={logout}
             className="text-sm text-slate-500 hover:text-slate-900 transition"

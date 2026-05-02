@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Project, Category, CardType, TaxonomyItem } from "@/lib/types";
+import DateTimePicker from "./DateTimePicker";
 
 // Friendly, non-tech-oriented submission form. Always lands cards in the Idea column.
 export default function IdeaForm({ projects }: { projects: Project[] }) {
@@ -145,18 +146,8 @@ export default function IdeaForm({ projects }: { projects: Project[] }) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-slate-700">Target deadline (optional)</label>
-        <input
-          type="datetime-local"
-          value={deadline}
-          onChange={(e) => {
-            let v = e.target.value;
-            if (v && !deadline && v.endsWith("T00:00")) v = v.slice(0, 11) + "14:00";
-            setDeadline(v);
-          }}
-          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-        />
-        <p className="text-xs text-slate-400 mt-1">Defaults to 2:00 PM if you only pick a date.</p>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Target deadline (optional)</label>
+        <DateTimePicker value={deadline || null} onChange={(v) => setDeadline(v ?? "")} />
       </div>
 
       <div>
