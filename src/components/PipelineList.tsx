@@ -96,8 +96,11 @@ export default function PipelineList({ currentUser }: { currentUser: SessionUser
         av = STAGES.indexOf(a.stage as Stage);
         bv = STAGES.indexOf(b.stage as Stage);
       } else {
-        av = (a as Record<string, unknown>)[sortKey] as string | number | null;
-        bv = (b as Record<string, unknown>)[sortKey] as string | number | null;
+        // SortKey is a subset of keyof CardWithMeta, so direct indexing is type-safe.
+        const va = a[sortKey];
+        const vb = b[sortKey];
+        av = (typeof va === "string" || typeof va === "number") ? va : null;
+        bv = (typeof vb === "string" || typeof vb === "number") ? vb : null;
       }
       if (av == null && bv == null) return 0;
       if (av == null) return 1;  // nulls always last
