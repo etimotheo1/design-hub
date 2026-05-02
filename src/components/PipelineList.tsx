@@ -174,8 +174,45 @@ export default function PipelineList({ currentUser }: { currentUser: SessionUser
         </p>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      {/* Card list — mobile only */}
+      <div className="md:hidden space-y-2">
+        {loading && <p className="p-6 text-sm text-slate-400">Loading…</p>}
+        {!loading && filtered.length === 0 && (
+          <p className="p-8 text-sm text-slate-400 italic text-center bg-white rounded-xl border border-slate-200">
+            {hasActiveFilters ? "No cards match these filters." : "No cards yet."}
+          </p>
+        )}
+        {!loading && filtered.map((c) => {
+          const dl = deadlineCountdown(c.deadline);
+          return (
+            <button
+              key={c.id}
+              onClick={() => setOpenCardId(c.id)}
+              className="w-full text-left bg-white rounded-xl border border-slate-200 shadow-sm hover:border-indigo-400 transition p-3"
+            >
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <span className="text-[11px] text-slate-500">{c.project_name}</span>
+                <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded font-semibold ${STAGE_PILL[c.stage as Stage]}`}>
+                  {STAGE_LABELS[c.stage as Stage]}
+                </span>
+                {dl && <span className={`text-[11px] font-medium ml-auto ${dl.cls}`}>{dl.label}</span>}
+              </div>
+              <div className="text-sm font-medium text-slate-900">{c.title}</div>
+              {c.imagined_outcome && (
+                <p className="text-xs text-slate-600 mt-1 line-clamp-2">{c.imagined_outcome}</p>
+              )}
+              <div className="flex items-center gap-2 flex-wrap mt-2 text-[11px] text-slate-500">
+                {c.category && <span>{c.category}</span>}
+                {c.card_type && <span>· {c.card_type}</span>}
+                {c.assignee_name && <span>· {c.assignee_name}</span>}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Table — md+ */}
+      <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

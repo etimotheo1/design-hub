@@ -19,6 +19,25 @@ export default function IdeaForm({ projects }: { projects: Project[] }) {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [expanding, setExpanding] = useState(false);
+  const [expansion, setExpansion] = useState<string | null>(null);
+
+  async function expandWithAI() {
+    if (!title.trim()) return;
+    setExpanding(true);
+    try {
+      const proj = projects.find((p) => p.id === projectId)?.name;
+      const res = await fetch("/api/ai/expand", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, imagined, project: proj }),
+      });
+      const j = await res.json();
+      if (j.ok && j.result?.expansion) setExpansion(j.result.expansion);
+    } finally {
+      setExpanding(false);
+    }
+  }
 
   useEffect(() => {
     fetch("/api/taxonomy").then((r) => r.json()).then((j) => {
@@ -113,11 +132,34 @@ export default function IdeaForm({ projects }: { projects: Project[] }) {
         <textarea
           value={imagined}
           onChange={(e) => setImagined(e.target.value)}
-          rows={4}
+          rows={imagined.length > 200 ? 8 : 4}
           className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent"
           placeholder="Describe the experience, outcome, or end-state you imagine. Don't worry about how — that's the tech team's job."
         />
-        <p className="text-xs text-slate-400 mt-1">This is the most important field. Help the tech team see what you see.</p>
+        <div className="mt-2 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={expandWithAI}
+            disabled={expanding || !title.trim()}
+            className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 disabled:opacity-50"
+          >
+            <span>✨</span>
+            {expanding ? "Expanding…" : "Expand with AI"}
+          </button>
+          <p className="text-xs text-slate-400">Claude can turn a one-liner into a fuller briefing.</p>
+        </div>
+        {expansion && (
+          <div className="mt-3 rounded-lg bg-violet-50 border border-violet-200 p-3 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-violet-800">✨ Suggested briefing</span>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => { setImagined(expansion); setExpansion(null); }} className="text-xs px-2 py-1 rounded bg-violet-700 text-white hover:bg-violet-800 font-medium">Use this</button>
+                <button type="button" onClick={() => setExpansion(null)} className="text-xs text-slate-500 hover:text-slate-800">Dismiss</button>
+              </div>
+            </div>
+            <pre className="text-xs text-slate-800 whitespace-pre-wrap font-sans leading-relaxed">{expansion}</pre>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">

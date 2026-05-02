@@ -42,6 +42,9 @@ export default function CardModal({
   const [newComment, setNewComment] = useState("");
   const [attLabel, setAttLabel] = useState("");
   const [attUrl, setAttUrl] = useState("");
+  const [expanding, setExpanding] = useState(false);
+  const [expansion, setExpansion] = useState<string | null>(null);
+  const [expandError, setExpandError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/cards/${cardId}`);
@@ -146,6 +149,40 @@ export default function CardModal({
     onClose();
   }
 
+  async function expandWithAI() {
+    if (!data) return;
+    setExpanding(true);
+    setExpandError(null);
+    try {
+      const res = await fetch("/api/ai/expand", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: editing ? title : data.card.title,
+          imagined: editing ? imagined : (data.card.imagined_outcome ?? ""),
+          project: data.card.project_name,
+        }),
+      });
+      const j = await res.json();
+      if (j.ok && j.result?.expansion) setExpansion(j.result.expansion);
+      else if (j.error) setExpandError(j.error);
+    } catch (e) {
+      setExpandError(e instanceof Error ? e.message : "Network error");
+    } finally {
+      setExpanding(false);
+    }
+  }
+
+  async function applyExpansion() {
+    if (!expansion) return;
+    if (editing) {
+      setImagined(expansion);
+    } else {
+      await patch({ imagined_outcome: expansion });
+    }
+    setExpansion(null);
+  }
+
   return (
     <Modal onClose={onClose} title={card.project_name}>
       <div className="space-y-4">
@@ -247,7 +284,7 @@ export default function CardModal({
             <textarea
               value={imagined}
               onChange={(e) => setImagined(e.target.value)}
-              rows={3}
+              rows={imagined.length > 300 ? 10 : 4}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
               placeholder="What success looks like for the ideator."
             />
@@ -255,6 +292,32 @@ export default function CardModal({
             <p className="text-sm text-slate-700 whitespace-pre-wrap">
               {card.imagined_outcome || <span className="text-slate-400 italic">No imagined outcome captured.</span>}
             </p>
+          )}
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={expandWithAI}
+              disabled={expanding || !(editing ? title.trim() : card.title)}
+              className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 disabled:opacity-50"
+              title="Use Claude to expand this into a richer briefing"
+            >
+              <span>✨</span>
+              {expanding ? "Expanding…" : "Expand with AI"}
+            </button>
+            {expandError && <span className="text-xs text-amber-700">{expandError}</span>}
+          </div>
+          {expansion && (
+            <div className="mt-3 rounded-lg bg-violet-50 border border-violet-200 p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-violet-800">✨ Suggested briefing</span>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={applyExpansion} className="text-xs px-2 py-1 rounded bg-violet-700 text-white hover:bg-violet-800 font-medium">Replace with this</button>
+                  <button type="button" onClick={expandWithAI} disabled={expanding} className="text-xs text-violet-700 hover:text-violet-900 disabled:opacity-50">Try again</button>
+                  <button type="button" onClick={() => setExpansion(null)} className="text-xs text-slate-500 hover:text-slate-800">Dismiss</button>
+                </div>
+              </div>
+              <pre className="text-xs text-slate-800 whitespace-pre-wrap font-sans leading-relaxed">{expansion}</pre>
+            </div>
           )}
         </Section>
 

@@ -28,7 +28,7 @@ export default function KanbanColumn({
 }) {
   return (
     <div
-      className="flex flex-col rounded-xl border border-slate-200 bg-white overflow-hidden"
+      className="flex flex-col rounded-xl border border-slate-200 bg-white overflow-hidden snap-start min-w-[85vw] sm:min-w-[60vw] md:min-w-0 flex-shrink-0 md:flex-shrink"
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         const cardId = Number(e.dataTransfer.getData("text/card-id"));

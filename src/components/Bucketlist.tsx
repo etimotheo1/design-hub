@@ -26,11 +26,16 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // AI suggestion
+  // AI suggestion (tags)
   const [aiAvailable, setAiAvailable] = useState<boolean | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [suggestion, setSuggestion] = useState<Suggestion>(null);
   const [suggesting, setSuggesting] = useState(false);
+
+  // AI expand (richer "what I imagine")
+  const [expanding, setExpanding] = useState(false);
+  const [expansion, setExpansion] = useState<string | null>(null);
+  const [expandError, setExpandError] = useState<string | null>(null);
 
   // List filters
   const [filterProject, setFilterProject] = useState<"all" | number>("all");
@@ -158,6 +163,38 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
     setSuggestion(null);
   }
 
+  // Ask Claude to expand the idea into a richer briefing.
+  async function expandWithAI() {
+    if (!title.trim()) return;
+    setExpanding(true);
+    setExpandError(null);
+    try {
+      const project = projects.find((p) => p.id === projectId)?.name;
+      const res = await fetch("/api/ai/expand", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, imagined, project }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setAiAvailable(data.available);
+        if (data.result?.expansion) setExpansion(data.result.expansion);
+        else if (data.error) setExpandError(data.error);
+      } else {
+        setExpandError(data.error || "AI request failed");
+      }
+    } catch (e) {
+      setExpandError(e instanceof Error ? e.message : "Network error");
+    } finally {
+      setExpanding(false);
+    }
+  }
+
+  function applyExpansion() {
+    if (expansion) setImagined(expansion);
+    setExpansion(null);
+  }
+
   async function promote(id: number) {
     await fetch(`/api/cards/${id}`, {
       method: "PATCH",
@@ -246,28 +283,59 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
             <textarea
               value={imagined}
               onChange={(e) => setImagined(e.target.value)}
-              placeholder="What do you imagine? (optional)"
-              rows={2}
+              placeholder="What do you imagine? (optional — Claude can expand this for you)"
+              rows={imagined.length > 200 ? 6 : 3}
               className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
 
-            {/* Explicit AI button — always visible. Disabled until title typed. */}
-            <div className="flex items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={askAI}
-                disabled={suggesting || !title.trim()}
-                className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <span>✨</span>
-                {suggesting ? "Thinking…" : "Suggest Category & Type with AI"}
-              </button>
+            {/* AI assist row */}
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={askAI}
+                  disabled={suggesting || !title.trim()}
+                  className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span>✨</span>
+                  {suggesting ? "Thinking…" : "Suggest tags"}
+                </button>
+                <button
+                  type="button"
+                  onClick={expandWithAI}
+                  disabled={expanding || !title.trim()}
+                  className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Turn your one-liner into a richer briefing for design + tech"
+                >
+                  <span>✨</span>
+                  {expanding ? "Expanding…" : "Expand details"}
+                </button>
+              </div>
               {aiAvailable === false && (
                 <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-md">
                   AI not configured. Admin: add <span className="font-mono">ANTHROPIC_API_KEY</span> in Railway.
                 </span>
               )}
             </div>
+
+            {/* AI expansion preview */}
+            {expansion && (
+              <div className="rounded-lg bg-violet-50 border border-violet-200 p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-violet-800">✨ Suggested briefing</span>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={applyExpansion} className="text-xs px-2 py-1 rounded bg-violet-700 text-white hover:bg-violet-800 font-medium">Use this</button>
+                    <button type="button" onClick={expandWithAI} disabled={expanding} className="text-xs text-violet-700 hover:text-violet-900 disabled:opacity-50">Try again</button>
+                    <button type="button" onClick={() => setExpansion(null)} className="text-xs text-slate-500 hover:text-slate-800">Dismiss</button>
+                  </div>
+                </div>
+                <pre className="text-xs text-slate-800 whitespace-pre-wrap font-sans leading-relaxed">{expansion}</pre>
+                <p className="text-[11px] text-violet-700/70">You can edit the text after clicking "Use this".</p>
+              </div>
+            )}
+            {!expanding && !expansion && expandError && (
+              <p className="text-xs text-amber-700">Expand failed: {expandError}</p>
+            )}
 
             {/* AI suggestion result */}
             {suggestion && (suggestion.category || suggestion.card_type) && (

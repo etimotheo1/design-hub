@@ -98,8 +98,9 @@ export default function KanbanBoard({ currentUser }: { currentUser: SessionUser 
         </button>
       </div>
 
-      {/* Columns */}
-      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 overflow-hidden">
+      {/* Columns — horizontal scroll-snap on mobile so each stage gets full width;
+          grid layout on larger screens. */}
+      <div className="flex-1 flex md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 overflow-x-auto md:overflow-hidden snap-x snap-mandatory pb-2 -mx-2 md:mx-0 px-2 md:px-0">
         {STAGES.map((stage) => (
           <KanbanColumn
             key={stage}
