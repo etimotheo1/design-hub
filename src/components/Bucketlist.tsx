@@ -179,7 +179,14 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
     <div className="space-y-6">
       {/* Step 1: Project picker */}
       <div>
-        <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-3">1. Pick a project</div>
+        <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-3">
+          1. Pick a project
+          {selectedProject && (
+            <span className="ml-2 normal-case font-normal text-slate-700">
+              · selected: <span className={`font-semibold ${selectedProjectColor.text}`}>{selectedProject.name}</span>
+            </span>
+          )}
+        </div>
         {projects.length === 0 ? (
           <p className="text-sm text-slate-400 italic">No projects yet — add one in Settings → Projects.</p>
         ) : (
@@ -192,20 +199,22 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
                   key={p.id}
                   type="button"
                   onClick={() => setProjectId(p.id)}
-                  className={`text-left bg-white rounded-xl p-4 transition relative
+                  className={`text-left rounded-xl p-4 transition relative
                     ${selected
-                      ? `border-2 ${cc.cardSelected} shadow-md`
-                      : "border border-slate-200 hover:-translate-y-0.5 hover:shadow-md"}`}
+                      ? `border-2 ${cc.cardSelected} ${cc.cardBg} shadow-lg scale-[1.02]`
+                      : "bg-white border border-slate-200 hover:-translate-y-0.5 hover:shadow-md"}`}
                 >
                   {selected && (
-                    <span className={`absolute top-2 right-2 h-2 w-2 rounded-full ${cc.cardSelectedDot}`}></span>
+                    <span className={`absolute -top-2 -right-2 px-2 py-0.5 rounded-full ${cc.cardSelectedDot} text-white text-[10px] font-semibold uppercase tracking-wide shadow`}>
+                      Selected
+                    </span>
                   )}
                   <div className={`h-1.5 w-10 rounded-full ${cc.stripe} mb-3`}></div>
                   <div className="font-semibold text-slate-900 text-sm leading-tight">{p.name}</div>
                   {p.description && (
                     <div className="text-xs text-slate-500 mt-1 line-clamp-2">{p.description}</div>
                   )}
-                  <div className="text-[11px] text-slate-400 mt-2">
+                  <div className="text-[11px] text-slate-500 mt-2">
                     {ideaCountByProject[p.id] ?? 0} {(ideaCountByProject[p.id] ?? 0) === 1 ? "idea" : "ideas"} waiting
                   </div>
                 </button>
@@ -305,17 +314,23 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
 
             {error && <p className="text-sm text-red-600">{error}</p>}
 
-            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+            <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-100 flex-wrap">
               <span className="text-xs text-slate-400">
                 Project &amp; tags remembered for the next idea.
               </span>
               <button
                 type="submit"
-                disabled={saving || !projectId}
-                className={`text-sm px-4 py-2 rounded-lg text-white disabled:opacity-50 transition
-                  ${selectedProject ? `${selectedProjectColor.stripe} hover:brightness-110` : "bg-slate-900 hover:bg-slate-800"}`}
+                disabled={saving || !projectId || !title.trim()}
+                className={`text-sm font-semibold px-5 py-2.5 rounded-lg text-white shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition
+                  ${selectedProject
+                    ? `${selectedProjectColor.buttonBg} ${selectedProjectColor.buttonHoverBg}`
+                    : "bg-slate-900 hover:bg-slate-800"}`}
               >
-                {saving ? "Adding…" : (selectedProject ? `Add to ${selectedProject.name}` : "Add to bucketlist")}
+                {saving
+                  ? "Adding…"
+                  : selectedProject
+                    ? `+ Add to ${selectedProject.name}`
+                    : "+ Add idea"}
               </button>
             </div>
           </form>
