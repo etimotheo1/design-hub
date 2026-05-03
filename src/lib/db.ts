@@ -323,8 +323,8 @@ function initSchema(db: DatabaseSync) {
     );
     CREATE INDEX IF NOT EXISTS idx_subs_form ON form_submissions(form_id);
 
-    -- Custom fields per form. Each field is one question: type drives UI, options
-    -- (for choice/multi_choice) are stored as JSON. Reorder by `position`.
+    -- Custom fields per form. Each field is one question: type drives UI,
+    -- options (for choice/multi_choice) are stored as JSON. Reorder by position.
     CREATE TABLE IF NOT EXISTS form_fields (
       id           INTEGER PRIMARY KEY AUTOINCREMENT,
       form_id      INTEGER NOT NULL,

@@ -35,7 +35,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
   if ("options" in body) {
     if (Array.isArray(body.options)) {
-      const arr = body.options.map((s) => String(s).trim()).filter(Boolean);
+      const arr = (body.options as unknown[]).map((s) => String(s).trim()).filter(Boolean);
       fields.push("options_json = ?"); values.push(arr.length > 0 ? JSON.stringify(arr) : null);
     } else if (body.options === null) {
       fields.push("options_json = ?"); values.push(null);
