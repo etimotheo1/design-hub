@@ -149,7 +149,7 @@ export default function CardModal({
     onClose();
   }
 
-  async function expandWithAI() {
+  async function expandWithAI(style: string = "default") {
     if (!data) return;
     setExpanding(true);
     setExpandError(null);
@@ -161,6 +161,7 @@ export default function CardModal({
           title: editing ? title : data.card.title,
           imagined: editing ? imagined : (data.card.imagined_outcome ?? ""),
           project: data.card.project_name,
+          style,
         }),
       });
       const j = await res.json();
@@ -296,7 +297,7 @@ export default function CardModal({
           <div className="mt-2 flex items-center gap-2">
             <button
               type="button"
-              onClick={expandWithAI}
+              onClick={() => expandWithAI("default")}
               disabled={expanding || !(editing ? title.trim() : card.title)}
               className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 disabled:opacity-50"
               title="Use Claude to expand this into a richer briefing"
@@ -308,15 +309,25 @@ export default function CardModal({
           </div>
           {expansion && (
             <div className="mt-3 rounded-lg bg-violet-50 border border-violet-200 p-3 space-y-2">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <span className="text-xs font-medium text-violet-800">✨ Suggested briefing</span>
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={applyExpansion} className="text-xs px-2 py-1 rounded bg-violet-700 text-white hover:bg-violet-800 font-medium">Replace with this</button>
-                  <button type="button" onClick={expandWithAI} disabled={expanding} className="text-xs text-violet-700 hover:text-violet-900 disabled:opacity-50">Try again</button>
                   <button type="button" onClick={() => setExpansion(null)} className="text-xs text-slate-500 hover:text-slate-800">Dismiss</button>
                 </div>
               </div>
               <pre className="text-xs text-slate-800 whitespace-pre-wrap font-sans leading-relaxed">{expansion}</pre>
+              <div className="pt-2 border-t border-violet-200/60">
+                <div className="text-[11px] uppercase tracking-wide text-violet-700/70 font-semibold mb-1.5">Try a different style</div>
+                <div className="flex flex-wrap gap-1.5">
+                  <StyleBtn onClick={() => expandWithAI("concise")}   disabled={expanding}>Shorter</StyleBtn>
+                  <StyleBtn onClick={() => expandWithAI("detailed")}  disabled={expanding}>More detail</StyleBtn>
+                  <StyleBtn onClick={() => expandWithAI("customer")}  disabled={expanding}>Customer angle</StyleBtn>
+                  <StyleBtn onClick={() => expandWithAI("technical")} disabled={expanding}>Technical angle</StyleBtn>
+                  <StyleBtn onClick={() => expandWithAI("strategic")} disabled={expanding}>Strategic / CEO</StyleBtn>
+                  <StyleBtn onClick={() => expandWithAI("default")}   disabled={expanding}>Re-roll</StyleBtn>
+                </div>
+              </div>
             </div>
           )}
         </Section>
@@ -432,6 +443,19 @@ export default function CardModal({
         </Section>
       </div>
     </Modal>
+  );
+}
+
+function StyleBtn({ children, onClick, disabled }: { children: React.ReactNode; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="text-[11px] px-2.5 py-1 rounded-md bg-white text-violet-700 hover:bg-violet-100 border border-violet-200 disabled:opacity-50 disabled:cursor-not-allowed transition"
+    >
+      {children}
+    </button>
   );
 }
 

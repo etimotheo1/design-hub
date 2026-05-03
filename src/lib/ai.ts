@@ -19,34 +19,77 @@ export function isAIConfigured(): boolean {
   return !!process.env.ANTHROPIC_API_KEY;
 }
 
+export type ExpandStyle = "default" | "concise" | "detailed" | "customer" | "technical" | "strategic";
+
 export interface ExpandInput {
   title: string;
   imagined?: string;
   project?: string;
+  style?: ExpandStyle;
 }
 
 export interface ExpandResult {
   expansion: string;
 }
 
-// Take a brief idea and expand it into a richer briefing that designers and
-// engineers can plan against. We deliberately keep it grounded — no invented
-// technical specifics, no generic boilerplate.
+// Style-specific tweaks to the system prompt. Each one changes length, focus,
+// or angle — but the core "stay grounded, use sections, no invented specifics"
+// rules are preserved.
+function styleInstructions(style: ExpandStyle): { length: string; focus: string; structure: string } {
+  switch (style) {
+    case "concise":
+      return {
+        length: "Keep it tight: 60–90 words total. Two or three short paragraphs, no headings unless essential.",
+        focus: "Get to the point. Capture the experience and the success signal — skip considerations unless critical.",
+        structure: "No headings required; flowing prose is fine.",
+      };
+    case "detailed":
+      return {
+        length: "Aim for 300–400 words. Use the full structure with substantive content under each heading.",
+        focus: "Cover edge cases, dependencies, and risks. Include subtle considerations that might affect design or build.",
+        structure: "Full structure: ## Who benefits, ## Imagined experience, ## Success signals, ## Considerations, ## Open questions.",
+      };
+    case "customer":
+      return {
+        length: "Around 150–200 words.",
+        focus: "Lean into the customer/user perspective — how they feel before, the specific moment things change for them, what they'll say to a friend.",
+        structure: "Use ## Customer pain today, ## What changes for them, ## Words they'd use, ## Risks to watch.",
+      };
+    case "technical":
+      return {
+        length: "Around 200–280 words.",
+        focus: "Practical implementation lens (without inventing architecture). Surface tech constraints, integration points, data needs.",
+        structure: "Use ## Outcome, ## Likely surface area, ## Data & integrations, ## Risks & constraints, ## Open questions.",
+      };
+    case "strategic":
+      return {
+        length: "Around 150–200 words.",
+        focus: "Frame it for executives. Why now, business impact, fit with priorities, what success looks like at the company level.",
+        structure: "Use ## The strategic bet, ## Why now, ## Business impact, ## Risks if we don't act, ## Decision needed.",
+      };
+    default: // "default"
+      return {
+        length: "Total length around 150–250 words. Use short bullet points within sections where helpful.",
+        focus: "Cover who benefits, imagined experience, success signals, considerations, and open questions.",
+        structure: "Use ## Who benefits, ## Imagined experience, ## Success signals, ## Considerations, ## Open questions.",
+      };
+  }
+}
+
 export async function expandIdea(input: ExpandInput): Promise<{ ok: boolean; result?: ExpandResult; error?: string }> {
   if (!isAIConfigured()) return { ok: false, error: "AI not configured" };
   if (!input.title.trim()) return { ok: false, error: "Empty title" };
 
+  const style = input.style || "default";
+  const instr = styleInstructions(style);
+
   const system = [
     "You expand brief design-thinking ideas into clearer briefings.",
     "Given a one-line idea and optional context, write a richer description that helps designers and engineers plan accurately.",
-    "Structure your response with these sections, using markdown headings:",
-    "  ## Who benefits — who feels this change, in concrete terms",
-    "  ## Imagined experience — what the end-state looks and feels like",
-    "  ## Success signals — observable indicators that it's working",
-    "  ## Considerations — constraints, risks, or dependencies worth flagging",
-    "  ## Open questions — what needs clarification before designing",
+    instr.structure,
+    instr.focus,
+    instr.length,
     "Be specific to the idea provided; don't invent technical details that weren't in the input.",
-    "Keep total length around 150–250 words. Use short bullet points within sections where helpful.",
     "Respond with the expanded text only — no preface, no JSON, no code fences, no surrounding quotes.",
   ].join("\n");
 

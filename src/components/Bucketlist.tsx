@@ -41,6 +41,9 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
   const [filterProject, setFilterProject] = useState<"all" | number>("all");
   const [search, setSearch] = useState("");
 
+  // Project picker search (for when there are many projects)
+  const [projectSearch, setProjectSearch] = useState("");
+
   const [openCardId, setOpenCardId] = useState<number | null>(null);
 
   async function load() {
@@ -164,7 +167,7 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
   }
 
   // Ask Claude to expand the idea into a richer briefing.
-  async function expandWithAI() {
+  async function expandWithAI(style: string = "default") {
     if (!title.trim()) return;
     setExpanding(true);
     setExpandError(null);
@@ -173,7 +176,7 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
       const res = await fetch("/api/ai/expand", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, imagined, project }),
+        body: JSON.stringify({ title, imagined, project, style }),
       });
       const data = await res.json();
       if (data.ok) {
@@ -222,19 +225,50 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
     <div className="space-y-6">
       {/* Step 1: Project picker */}
       <div>
-        <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-3">
-          1. Pick a project
-          {selectedProject && (
-            <span className="ml-2 normal-case font-normal text-slate-700">
-              · selected: <span className={`font-semibold ${selectedProjectColor.text}`}>{selectedProject.name}</span>
-            </span>
+        <div className="flex items-baseline justify-between gap-3 mb-3 flex-wrap">
+          <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold">
+            1. Pick a project
+            {selectedProject && (
+              <span className="ml-2 normal-case font-normal text-slate-700">
+                · selected: <span className={`font-semibold ${selectedProjectColor.text}`}>{selectedProject.name}</span>
+              </span>
+            )}
+          </div>
+          {projects.length > 4 && (
+            <div className="relative">
+              <input
+                value={projectSearch}
+                onChange={(e) => setProjectSearch(e.target.value)}
+                placeholder="Search projects…"
+                className="text-sm rounded-lg border border-slate-300 px-3 py-1.5 pl-8 bg-white w-56 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
+              {projectSearch && (
+                <button
+                  type="button"
+                  onClick={() => setProjectSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-sm"
+                  title="Clear search"
+                >×</button>
+              )}
+            </div>
           )}
         </div>
         {projects.length === 0 ? (
           <p className="text-sm text-slate-400 italic">No projects yet — add one in Settings → Projects.</p>
-        ) : (
+        ) : (() => {
+          const visibleProjects = projectSearch.trim()
+            ? projects.filter((p) =>
+                p.name.toLowerCase().includes(projectSearch.trim().toLowerCase()) ||
+                (p.description ?? "").toLowerCase().includes(projectSearch.trim().toLowerCase())
+              )
+            : projects;
+          if (visibleProjects.length === 0) {
+            return <p className="text-sm text-slate-400 italic">No projects match "{projectSearch}".</p>;
+          }
+          return (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {projects.map((p) => {
+            {visibleProjects.map((p) => {
               const cc = colorClasses(p.color);
               const selected = p.id === projectId;
               return (
@@ -264,7 +298,8 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
               );
             })}
           </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* Step 2: Idea capture */}
@@ -302,7 +337,7 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
                 </button>
                 <button
                   type="button"
-                  onClick={expandWithAI}
+                  onClick={() => expandWithAI("default")}
                   disabled={expanding || !title.trim()}
                   className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Turn your one-liner into a richer briefing for design + tech"
@@ -321,15 +356,25 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
             {/* AI expansion preview */}
             {expansion && (
               <div className="rounded-lg bg-violet-50 border border-violet-200 p-3 space-y-2">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                   <span className="text-xs font-medium text-violet-800">✨ Suggested briefing</span>
                   <div className="flex items-center gap-2">
                     <button type="button" onClick={applyExpansion} className="text-xs px-2 py-1 rounded bg-violet-700 text-white hover:bg-violet-800 font-medium">Use this</button>
-                    <button type="button" onClick={expandWithAI} disabled={expanding} className="text-xs text-violet-700 hover:text-violet-900 disabled:opacity-50">Try again</button>
                     <button type="button" onClick={() => setExpansion(null)} className="text-xs text-slate-500 hover:text-slate-800">Dismiss</button>
                   </div>
                 </div>
                 <pre className="text-xs text-slate-800 whitespace-pre-wrap font-sans leading-relaxed">{expansion}</pre>
+                <div className="pt-2 border-t border-violet-200/60">
+                  <div className="text-[11px] uppercase tracking-wide text-violet-700/70 font-semibold mb-1.5">Try a different style</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <StyleBtn onClick={() => expandWithAI("concise")}    disabled={expanding}>Shorter</StyleBtn>
+                    <StyleBtn onClick={() => expandWithAI("detailed")}   disabled={expanding}>More detail</StyleBtn>
+                    <StyleBtn onClick={() => expandWithAI("customer")}   disabled={expanding}>Customer angle</StyleBtn>
+                    <StyleBtn onClick={() => expandWithAI("technical")}  disabled={expanding}>Technical angle</StyleBtn>
+                    <StyleBtn onClick={() => expandWithAI("strategic")}  disabled={expanding}>Strategic / CEO</StyleBtn>
+                    <StyleBtn onClick={() => expandWithAI("default")}    disabled={expanding}>Re-roll</StyleBtn>
+                  </div>
+                </div>
                 <p className="text-[11px] text-violet-700/70">You can edit the text after clicking "Use this".</p>
               </div>
             )}
@@ -531,5 +576,18 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
         />
       )}
     </div>
+  );
+}
+
+function StyleBtn({ children, onClick, disabled }: { children: React.ReactNode; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="text-[11px] px-2.5 py-1 rounded-md bg-white text-violet-700 hover:bg-violet-100 border border-violet-200 disabled:opacity-50 disabled:cursor-not-allowed transition"
+    >
+      {children}
+    </button>
   );
 }

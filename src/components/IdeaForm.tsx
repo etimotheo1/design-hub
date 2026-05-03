@@ -22,7 +22,7 @@ export default function IdeaForm({ projects }: { projects: Project[] }) {
   const [expanding, setExpanding] = useState(false);
   const [expansion, setExpansion] = useState<string | null>(null);
 
-  async function expandWithAI() {
+  async function expandWithAI(style: string = "default") {
     if (!title.trim()) return;
     setExpanding(true);
     try {
@@ -30,7 +30,7 @@ export default function IdeaForm({ projects }: { projects: Project[] }) {
       const res = await fetch("/api/ai/expand", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, imagined, project: proj }),
+        body: JSON.stringify({ title, imagined, project: proj, style }),
       });
       const j = await res.json();
       if (j.ok && j.result?.expansion) setExpansion(j.result.expansion);
@@ -139,7 +139,7 @@ export default function IdeaForm({ projects }: { projects: Project[] }) {
         <div className="mt-2 flex items-center gap-2">
           <button
             type="button"
-            onClick={expandWithAI}
+            onClick={() => expandWithAI("default")}
             disabled={expanding || !title.trim()}
             className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 disabled:opacity-50"
           >
@@ -150,7 +150,7 @@ export default function IdeaForm({ projects }: { projects: Project[] }) {
         </div>
         {expansion && (
           <div className="mt-3 rounded-lg bg-violet-50 border border-violet-200 p-3 space-y-2">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <span className="text-xs font-medium text-violet-800">✨ Suggested briefing</span>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={() => { setImagined(expansion); setExpansion(null); }} className="text-xs px-2 py-1 rounded bg-violet-700 text-white hover:bg-violet-800 font-medium">Use this</button>
@@ -158,6 +158,27 @@ export default function IdeaForm({ projects }: { projects: Project[] }) {
               </div>
             </div>
             <pre className="text-xs text-slate-800 whitespace-pre-wrap font-sans leading-relaxed">{expansion}</pre>
+            <div className="pt-2 border-t border-violet-200/60">
+              <div className="text-[11px] uppercase tracking-wide text-violet-700/70 font-semibold mb-1.5">Try a different style</div>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  ["concise",   "Shorter"],
+                  ["detailed",  "More detail"],
+                  ["customer",  "Customer angle"],
+                  ["technical", "Technical angle"],
+                  ["strategic", "Strategic / CEO"],
+                  ["default",   "Re-roll"],
+                ].map(([s, label]) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => expandWithAI(s)}
+                    disabled={expanding}
+                    className="text-[11px] px-2.5 py-1 rounded-md bg-white text-violet-700 hover:bg-violet-100 border border-violet-200 disabled:opacity-50 transition"
+                  >{label}</button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>
