@@ -184,6 +184,35 @@ export async function ensureAdminSeed() {
   );
 }
 
+// Bootstrap: pseudo-user for external form submitters. Cards created from a
+// public /s/[token] form are attributed to this user. They can never log in
+// (random un-guessable hash). Returns the user id.
+export async function ensureExternalUser(): Promise<number> {
+  const existing = get<{ id: number }>(`SELECT id FROM users WHERE username = 'external'`);
+  if (existing) return existing.id;
+  // Random hash — nobody can ever sign in as this user.
+  const randomHash = await hashPassword(`external-${Math.random()}-${Date.now()}`);
+  const result = run(
+    `INSERT INTO users (username, password_hash, display_name, role, access_policy)
+     VALUES ('external', ?, 'External Submitter', 'non_tech', 'restricted')`,
+    [randomHash]
+  );
+  return Number(result.lastInsertRowid);
+}
+
+// Bootstrap: an "Inbox" project that holds form submissions awaiting project
+// assignment. Visible to admins only.
+export function ensureInboxProject(creatorId: number): number {
+  const existing = get<{ id: number }>(`SELECT id FROM projects WHERE name = '📥 Submission Inbox'`);
+  if (existing) return existing.id;
+  const result = run(
+    `INSERT INTO projects (name, description, color, visibility, created_by, archived)
+     VALUES ('📥 Submission Inbox', 'Form submissions waiting for project assignment.', 'amber', 'private', ?, 0)`,
+    [creatorId]
+  );
+  return Number(result.lastInsertRowid);
+}
+
 // Generate a memorable yet random temporary password for invited users.
 // Format: <word>-<word>-<3 digits> (e.g. "river-otter-482"). Easy to type, hard to guess.
 const WORDS = [

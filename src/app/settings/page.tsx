@@ -39,6 +39,12 @@ export default function SettingsPage() {
               icon="🔑"
             />
             <Card
+              href="/admin/forms"
+              title="Forms"
+              description="Shareable links so anyone can submit ideas — no account needed."
+              icon="📨"
+            />
+            <Card
               href="/projects"
               title="Projects"
               description="Manage initiatives. Public, private, or hidden."

@@ -285,6 +285,45 @@ function initSchema(db: DatabaseSync) {
     db.exec(`ALTER TABLE projects ADD COLUMN created_by INTEGER`);
   }
 
+  // Card columns for external (form-submitted) ideas
+  if (!tableHasColumn(db, "cards", "external_submitter_name"))  db.exec(`ALTER TABLE cards ADD COLUMN external_submitter_name TEXT`);
+  if (!tableHasColumn(db, "cards", "external_submitter_email")) db.exec(`ALTER TABLE cards ADD COLUMN external_submitter_email TEXT`);
+  if (!tableHasColumn(db, "cards", "from_form_id"))             db.exec(`ALTER TABLE cards ADD COLUMN from_form_id INTEGER`);
+  if (!tableHasColumn(db, "cards", "suggested_project_name"))   db.exec(`ALTER TABLE cards ADD COLUMN suggested_project_name TEXT`);
+
+  // Forms tables
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS forms (
+      id                            INTEGER PRIMARY KEY AUTOINCREMENT,
+      token                         TEXT NOT NULL UNIQUE,
+      name                          TEXT NOT NULL,
+      project_id                    INTEGER,           -- null = submitter picks from public
+      allow_suggest_new_project     INTEGER NOT NULL DEFAULT 1,
+      default_category              TEXT,
+      thank_you_message             TEXT,
+      submit_button_label           TEXT,
+      active                        INTEGER NOT NULL DEFAULT 1,
+      created_by                    INTEGER NOT NULL,
+      created_at                    TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at                    TEXT,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_forms_token ON forms(token);
+
+    CREATE TABLE IF NOT EXISTS form_submissions (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      form_id         INTEGER NOT NULL,
+      card_id         INTEGER,
+      submitter_name  TEXT NOT NULL,
+      submitter_email TEXT NOT NULL,
+      submitted_at    TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (form_id) REFERENCES forms(id) ON DELETE CASCADE,
+      FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE SET NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_subs_form ON form_submissions(form_id);
+  `);
+
   // One-time heal: any admin stuck with the forced-change flag gets cleared.
   // (Earlier versions seeded the admin with must_change_password = 1, which
   // could repeatedly send the admin to /change-password. The seeded admin

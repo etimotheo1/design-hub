@@ -88,11 +88,31 @@ export interface Card {
   position: number; // ordering within a column
   category: Category | null;
   card_type: CardType | null;
-  deadline: string | null; // ISO date (YYYY-MM-DD)
+  deadline: string | null; // ISO date (YYYY-MM-DD) or YYYY-MM-DDTHH:MM
   created_by: number; // user id
   assignee_id: number | null;
+  // External form submission fields
+  external_submitter_name: string | null;
+  external_submitter_email: string | null;
+  from_form_id: number | null;
+  suggested_project_name: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ShareableForm {
+  id: number;
+  token: string;
+  name: string;
+  project_id: number | null;
+  allow_suggest_new_project: number;
+  default_category: string | null;
+  thank_you_message: string | null;
+  submit_button_label: string | null;
+  active: number;
+  created_by: number;
+  created_at: string;
+  expires_at: string | null;
 }
 
 export interface StageHistoryEntry {

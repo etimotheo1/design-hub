@@ -89,11 +89,33 @@ export async function GET() {
     );
   }
 
+  // Form submissions awaiting project assignment (admin only).
+  // These are cards that came in via a public form with a "suggest new project"
+  // selection — they need an admin to either create the new project or move
+  // the card to an existing one.
+  let pendingSubmissions: Array<{
+    id: number; title: string; imagined_outcome: string | null;
+    suggested_project_name: string; external_submitter_name: string | null;
+    external_submitter_email: string | null; created_at: string;
+  }> = [];
+  if (user.role === "admin") {
+    pendingSubmissions = all(
+      `SELECT id, title, imagined_outcome, suggested_project_name,
+              external_submitter_name, external_submitter_email, created_at
+       FROM cards
+       WHERE suggested_project_name IS NOT NULL
+         AND stage = 'idea'
+       ORDER BY created_at DESC
+       LIMIT 50`
+    );
+  }
+
   return NextResponse.json({
     ok: true,
     stuckIdeas,
     overdueCards,
     dueSoon,
     pendingInvites,
+    pendingSubmissions,
   });
 }

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import type { Invitation, SessionUser, Stage } from "@/lib/types";
+import type { Invitation, Project, SessionUser, Stage } from "@/lib/types";
 import { STAGE_LABELS } from "@/lib/types";
 import CardModal from "./CardModal";
 
@@ -20,11 +20,22 @@ type ApprovalCard = {
   comment_count: number;
 };
 
+type PendingSubmission = {
+  id: number;
+  title: string;
+  imagined_outcome: string | null;
+  suggested_project_name: string;
+  external_submitter_name: string | null;
+  external_submitter_email: string | null;
+  created_at: string;
+};
+
 type ApprovalsData = {
   stuckIdeas: ApprovalCard[];
   overdueCards: ApprovalCard[];
   dueSoon: ApprovalCard[];
   pendingInvites: (Invitation & { invited_by_name: string })[];
+  pendingSubmissions: PendingSubmission[];
 };
 
 const STAGE_PILL: Record<Stage, string> = {
@@ -47,17 +58,40 @@ function deadlineDays(d: string): number {
 
 export default function Approvals({ currentUser }: { currentUser: SessionUser }) {
   const [data, setData] = useState<ApprovalsData | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [openCardId, setOpenCardId] = useState<number | null>(null);
 
   async function load() {
     setLoading(true);
-    const res = await fetch("/api/approvals");
-    const json = await res.json();
-    if (json.ok) setData(json);
+    const [a, p] = await Promise.all([
+      fetch("/api/approvals").then((r) => r.json()),
+      fetch("/api/projects").then((r) => r.json()),
+    ]);
+    if (a.ok) setData(a);
+    if (p.ok) setProjects(p.projects);
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
+
+  async function approveAsExisting(cardId: number, projectId: number) {
+    await fetch(`/api/cards/${cardId}/assign-project`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project_id: projectId }),
+    });
+    load();
+  }
+
+  async function approveAsNew(cardId: number, name: string) {
+    if (!name.trim()) return;
+    await fetch(`/api/cards/${cardId}/assign-project`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ create_project: { name: name.trim() } }),
+    });
+    load();
+  }
 
   async function copyInviteLink(token: string) {
     const url = `${window.location.origin}/accept-invite/${token}`;
@@ -73,7 +107,8 @@ export default function Approvals({ currentUser }: { currentUser: SessionUser })
   if (!data) return <p className="text-sm text-red-600">Could not load.</p>;
 
   const totalAttention =
-    data.stuckIdeas.length + data.overdueCards.length + data.dueSoon.length + data.pendingInvites.length;
+    data.stuckIdeas.length + data.overdueCards.length + data.dueSoon.length +
+    data.pendingInvites.length + (data.pendingSubmissions?.length ?? 0);
 
   if (totalAttention === 0) {
     return (
@@ -87,6 +122,25 @@ export default function Approvals({ currentUser }: { currentUser: SessionUser })
 
   return (
     <div className="space-y-6">
+      {currentUser.role === "admin" && data.pendingSubmissions && data.pendingSubmissions.length > 0 && (
+        <Section
+          title={`New project suggestions (${data.pendingSubmissions.length})`}
+          tint="indigo"
+          subtitle="Submitted via a public form. Either move the idea to an existing project, or create the suggested new project."
+        >
+          {data.pendingSubmissions.map((s) => (
+            <PendingRow
+              key={s.id}
+              submission={s}
+              projects={projects.filter((p) => !p.archived)}
+              onApproveExisting={(pid) => approveAsExisting(s.id, pid)}
+              onApproveNew={(name) => approveAsNew(s.id, name)}
+              onOpen={() => setOpenCardId(s.id)}
+            />
+          ))}
+        </Section>
+      )}
+
       {data.overdueCards.length > 0 && (
         <Section
           title={`Overdue (${data.overdueCards.length})`}
@@ -177,6 +231,83 @@ function Section({
         <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
       </div>
       <div className="divide-y divide-slate-100">{children}</div>
+    </div>
+  );
+}
+
+function PendingRow({
+  submission, projects, onApproveExisting, onApproveNew, onOpen,
+}: {
+  submission: PendingSubmission;
+  projects: Project[];
+  onApproveExisting: (projectId: number) => void;
+  onApproveNew: (name: string) => void;
+  onOpen: () => void;
+}) {
+  const [mode, setMode] = useState<"choose" | "existing" | "new">("choose");
+  const [pickedProject, setPickedProject] = useState<number | "">("");
+  const [newName, setNewName] = useState(submission.suggested_project_name);
+
+  return (
+    <div className="px-4 py-3 hover:bg-slate-50">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <button onClick={onOpen} className="text-left min-w-0 flex-1">
+          <div className="text-sm font-medium text-slate-900">{submission.title}</div>
+          {submission.imagined_outcome && (
+            <p className="text-xs text-slate-600 mt-1 line-clamp-2">{submission.imagined_outcome}</p>
+          )}
+          <div className="text-[11px] text-slate-500 mt-1.5">
+            From {submission.external_submitter_name}
+            {submission.external_submitter_email && <> · {submission.external_submitter_email}</>}
+          </div>
+          <div className="mt-1.5 inline-block text-[11px] px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 font-medium">
+            Suggested project: {submission.suggested_project_name}
+          </div>
+        </button>
+      </div>
+
+      {mode === "choose" && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button onClick={() => { setMode("new"); }} className="text-xs px-2.5 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">
+            ✓ Create "{submission.suggested_project_name}"
+          </button>
+          <button onClick={() => setMode("existing")} className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100">
+            → Move to existing project
+          </button>
+        </div>
+      )}
+
+      {mode === "new" && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            className="flex-1 min-w-[12rem] text-sm rounded-lg border border-slate-300 px-3 py-1.5"
+            placeholder="Project name"
+          />
+          <button onClick={() => onApproveNew(newName)} className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">Create &amp; move</button>
+          <button onClick={() => setMode("choose")} className="text-xs text-slate-500 hover:text-slate-800">Cancel</button>
+        </div>
+      )}
+
+      {mode === "existing" && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <select
+            value={pickedProject === "" ? "" : String(pickedProject)}
+            onChange={(e) => setPickedProject(e.target.value ? Number(e.target.value) : "")}
+            className="flex-1 min-w-[12rem] text-sm rounded-lg border border-slate-300 px-2 py-1.5 bg-white"
+          >
+            <option value="">Choose a project…</option>
+            {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          <button
+            onClick={() => typeof pickedProject === "number" && onApproveExisting(pickedProject)}
+            disabled={pickedProject === ""}
+            className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+          >Move card</button>
+          <button onClick={() => setMode("choose")} className="text-xs text-slate-500 hover:text-slate-800">Cancel</button>
+        </div>
+      )}
     </div>
   );
 }
