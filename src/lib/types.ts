@@ -115,6 +115,46 @@ export interface ShareableForm {
   expires_at: string | null;
 }
 
+export type FormFieldType =
+  | "short_text" | "long_text" | "choice" | "multi_choice"
+  | "yes_no" | "number" | "date" | "email" | "phone" | "url";
+
+export const FORM_FIELD_TYPES: { value: FormFieldType; label: string; supportsOptions: boolean }[] = [
+  { value: "short_text",  label: "Short text",     supportsOptions: false },
+  { value: "long_text",   label: "Long text",      supportsOptions: false },
+  { value: "choice",      label: "Single choice",  supportsOptions: true  },
+  { value: "multi_choice",label: "Multiple choice",supportsOptions: true  },
+  { value: "yes_no",      label: "Yes / No",       supportsOptions: false },
+  { value: "number",      label: "Number",         supportsOptions: false },
+  { value: "date",        label: "Date",           supportsOptions: false },
+  { value: "email",       label: "Email",          supportsOptions: false },
+  { value: "phone",       label: "Phone",          supportsOptions: false },
+  { value: "url",         label: "URL / link",     supportsOptions: false },
+];
+
+export interface FormField {
+  id: number;
+  form_id: number;
+  position: number;
+  type: FormFieldType;
+  label: string;
+  placeholder: string | null;
+  helper_text: string | null;
+  required: number;
+  options_json: string | null;       // raw JSON; consumers parse to string[]
+  options?: string[];                // populated by API when convenient
+}
+
+export interface FormFieldAnswer {
+  id: number;
+  submission_id: number;
+  field_id: number;
+  value: string | null;
+  // populated by JOIN when shown to admins:
+  field_label?: string;
+  field_type?: FormFieldType;
+}
+
 export interface StageHistoryEntry {
   id: number;
   card_id: number;

@@ -53,7 +53,21 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     [id]
   );
 
-  return NextResponse.json({ ok: true, card, comments, attachments, collaborators });
+  // If this card came from a form submission, surface the custom-field answers
+  // so the admin can see what the submitter said.
+  const submissionAnswers = card.from_form_id ? all<{
+    field_label: string; field_type: string; value: string | null; position: number;
+  }>(
+    `SELECT ff.label AS field_label, ff.type AS field_type, fa.value, ff.position
+     FROM form_submissions fs
+     JOIN form_field_answers fa ON fa.submission_id = fs.id
+     JOIN form_fields ff ON ff.id = fa.field_id
+     WHERE fs.card_id = ?
+     ORDER BY ff.position ASC`,
+    [id]
+  ) : [];
+
+  return NextResponse.json({ ok: true, card, comments, attachments, collaborators, submissionAnswers });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {

@@ -322,6 +322,35 @@ function initSchema(db: DatabaseSync) {
       FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE SET NULL
     );
     CREATE INDEX IF NOT EXISTS idx_subs_form ON form_submissions(form_id);
+
+    -- Custom fields per form. Each field is one question: type drives UI, options
+    -- (for choice/multi_choice) are stored as JSON. Reorder by `position`.
+    CREATE TABLE IF NOT EXISTS form_fields (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      form_id      INTEGER NOT NULL,
+      position     INTEGER NOT NULL DEFAULT 0,
+      type         TEXT NOT NULL,                 -- short_text|long_text|choice|multi_choice|yes_no|number|date|email|phone|url
+      label        TEXT NOT NULL,
+      placeholder  TEXT,
+      helper_text  TEXT,
+      required     INTEGER NOT NULL DEFAULT 0,
+      options_json TEXT,                          -- JSON array of strings for choice / multi_choice
+      created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (form_id) REFERENCES forms(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_form_fields_form ON form_fields(form_id);
+
+    -- Answers a submitter gave to a form's custom fields. value is text (for
+    -- multi_choice we store JSON-stringified arrays).
+    CREATE TABLE IF NOT EXISTS form_field_answers (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      submission_id INTEGER NOT NULL,
+      field_id      INTEGER NOT NULL,
+      value         TEXT,
+      FOREIGN KEY (submission_id) REFERENCES form_submissions(id) ON DELETE CASCADE,
+      FOREIGN KEY (field_id)      REFERENCES form_fields(id)      ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_ans_submission ON form_field_answers(submission_id);
   `);
 
   // One-time heal: any admin stuck with the forced-change flag gets cleared.

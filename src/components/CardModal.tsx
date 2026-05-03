@@ -4,11 +4,14 @@ import type { Card, Comment, Attachment, Stage, SessionUser, User, TaxonomyItem,
 import { STAGES, STAGE_LABELS } from "@/lib/types";
 import DateTimePicker from "./DateTimePicker";
 
+type SubmissionAnswer = { field_label: string; field_type: string; value: string | null; position: number };
+
 type Loaded = {
   card: Card & { project_name: string; created_by_name: string; assignee_name: string | null };
   comments: (Comment & { author_name: string })[];
   attachments: Attachment[];
   collaborators: Collaborator[];
+  submissionAnswers?: SubmissionAnswer[];
 };
 
 // Convert deadline value (date or datetime string) to the format <input type="datetime-local">
@@ -76,7 +79,7 @@ export default function CardModal({
     );
   }
 
-  const { card, comments, attachments, collaborators } = data;
+  const { card, comments, attachments, collaborators, submissionAnswers } = data;
   const collaboratorIds = new Set(collaborators.map((c) => c.user_id));
   const addableUsers = users.filter((u) => !collaboratorIds.has(u.id) && u.id !== card.assignee_id);
 
@@ -345,6 +348,29 @@ export default function CardModal({
           <button onClick={deleteCard} className="text-sm text-red-600 hover:text-red-800 px-2">Delete card</button>
         </div>
 
+        {/* Submission answers (only if card came from a public form) */}
+        {(card.external_submitter_name || (submissionAnswers && submissionAnswers.length > 0)) && (
+          <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 space-y-2">
+            <div className="text-xs uppercase tracking-wide text-amber-800 font-semibold">📨 Form submission</div>
+            {card.external_submitter_name && (
+              <div className="text-sm text-slate-800">
+                From <span className="font-medium">{card.external_submitter_name}</span>
+                {card.external_submitter_email && <> · <span className="font-mono text-xs">{card.external_submitter_email}</span></>}
+              </div>
+            )}
+            {submissionAnswers && submissionAnswers.length > 0 && (
+              <dl className="text-sm divide-y divide-amber-200/60">
+                {submissionAnswers.map((a, i) => (
+                  <div key={i} className="py-1.5 flex flex-col sm:flex-row sm:gap-3">
+                    <dt className="font-medium text-slate-700 sm:w-1/3">{a.field_label}</dt>
+                    <dd className="text-slate-900 flex-1 break-words">{renderAnswer(a)}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </div>
+        )}
+
         <hr className="border-slate-200" />
 
         {/* Collaborators */}
@@ -444,6 +470,20 @@ export default function CardModal({
       </div>
     </Modal>
   );
+}
+
+function renderAnswer(a: { field_type: string; value: string | null }): React.ReactNode {
+  if (!a.value) return <span className="text-slate-400 italic">—</span>;
+  if (a.field_type === "multi_choice") {
+    try {
+      const arr = JSON.parse(a.value) as unknown;
+      if (Array.isArray(arr)) return arr.map(String).join(", ");
+    } catch { /* fall through */ }
+  }
+  if (a.field_type === "yes_no") {
+    return a.value === "yes" || a.value === "true" ? "✓ Yes" : "✗ No";
+  }
+  return a.value;
 }
 
 function StyleBtn({ children, onClick, disabled }: { children: React.ReactNode; onClick: () => void; disabled?: boolean }) {

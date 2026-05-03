@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { Project, ShareableForm } from "@/lib/types";
+import FormFieldsDesigner from "./FormFieldsDesigner";
 
 type FormRow = ShareableForm & { submission_count: number; project_name: string | null };
 
@@ -8,6 +9,7 @@ export default function FormsAdmin() {
   const [forms, setForms] = useState<FormRow[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [openFormId, setOpenFormId] = useState<number | null>(null);
 
   // Create form fields
   const [name, setName] = useState("");
@@ -129,36 +131,48 @@ export default function FormsAdmin() {
         <p className="text-sm text-slate-500 italic">No forms yet. Create one above to start collecting ideas from outside Design Hub.</p>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100">
-          {forms.map((f) => (
-            <div key={f.id} className="p-4 sm:p-5">
-              <div className="flex items-start justify-between gap-3 flex-wrap">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-slate-900">{f.name}</span>
-                    {f.active ? (
-                      <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-semibold">Active</span>
-                    ) : (
-                      <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold">Paused</span>
-                    )}
+          {forms.map((f) => {
+            const expanded = openFormId === f.id;
+            return (
+              <div key={f.id} className="p-4 sm:p-5">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-slate-900">{f.name}</span>
+                      {f.active ? (
+                        <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-semibold">Active</span>
+                      ) : (
+                        <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold">Paused</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      Lands in: {f.project_name ? <span className="font-medium">{f.project_name}</span> : "submitter picks (public projects)"}
+                      {" · "}{f.submission_count} submission{f.submission_count === 1 ? "" : "s"}
+                    </div>
+                    <div className="mt-2 flex items-center gap-2 flex-wrap">
+                      <code className="text-xs bg-slate-100 text-slate-800 px-2 py-1 rounded break-all flex-1 min-w-0">{publicUrl(f.token)}</code>
+                      <button onClick={() => copyUrl(f.token)} className="text-xs px-2 py-1 rounded bg-slate-900 text-white hover:bg-slate-700">Copy link</button>
+                    </div>
                   </div>
-                  <div className="text-xs text-slate-500 mt-0.5">
-                    Lands in: {f.project_name ? <span className="font-medium">{f.project_name}</span> : "submitter picks (public projects)"}
-                    {" · "}{f.submission_count} submission{f.submission_count === 1 ? "" : "s"}
-                  </div>
-                  <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    <code className="text-xs bg-slate-100 text-slate-800 px-2 py-1 rounded break-all flex-1 min-w-0">{publicUrl(f.token)}</code>
-                    <button onClick={() => copyUrl(f.token)} className="text-xs px-2 py-1 rounded bg-slate-900 text-white hover:bg-slate-700">Copy link</button>
+                  <div className="flex items-center gap-3 text-sm flex-shrink-0">
+                    <button onClick={() => setOpenFormId(expanded ? null : f.id)} className="text-indigo-600 hover:text-indigo-800 font-medium">
+                      {expanded ? "Close" : "Design questions"}
+                    </button>
+                    <button onClick={() => setActive(f.id, !f.active)} className="text-slate-600 hover:text-slate-900">
+                      {f.active ? "Pause" : "Resume"}
+                    </button>
+                    <button onClick={() => remove(f.id)} className="text-red-600 hover:text-red-800">Revoke</button>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 text-sm flex-shrink-0">
-                  <button onClick={() => setActive(f.id, !f.active)} className="text-slate-600 hover:text-slate-900">
-                    {f.active ? "Pause" : "Resume"}
-                  </button>
-                  <button onClick={() => remove(f.id)} className="text-red-600 hover:text-red-800">Revoke</button>
-                </div>
+
+                {expanded && (
+                  <div className="mt-4 pt-4 border-t border-slate-200">
+                    <FormFieldsDesigner formId={f.id} />
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

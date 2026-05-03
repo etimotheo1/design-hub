@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import type { FormField } from "@/lib/types";
 
 type FormConfig = {
   name: string;
@@ -15,6 +16,7 @@ type PublicProject = { id: number; name: string; color: string | null; descripti
 export default function PublicSubmitForm({ token }: { token: string }) {
   const [config, setConfig] = useState<FormConfig | null>(null);
   const [projects, setProjects] = useState<PublicProject[]>([]);
+  const [fields, setFields] = useState<FormField[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Form state
@@ -24,6 +26,7 @@ export default function PublicSubmitForm({ token }: { token: string }) {
   const [imagined, setImagined] = useState("");
   const [picked, setPicked] = useState<number | "new" | "">("");
   const [suggestedProject, setSuggestedProject] = useState("");
+  const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [thankYou, setThankYou] = useState<string | null>(null);
@@ -35,6 +38,7 @@ export default function PublicSubmitForm({ token }: { token: string }) {
         if (j.ok) {
           setConfig(j.form);
           setProjects(j.public_projects);
+          setFields(j.fields ?? []);
         } else {
           setLoadError(j.error || "This form is not available.");
         }
@@ -99,6 +103,7 @@ export default function PublicSubmitForm({ token }: { token: string }) {
         imagined,
         project_id: projectIdToSend,
         suggested_new_project: suggestedToSend,
+        answers,
       }),
     });
     const data = await res.json();
@@ -155,6 +160,16 @@ export default function PublicSubmitForm({ token }: { token: string }) {
         </Field>
       )}
 
+      {/* Custom fields the admin designed */}
+      {fields.map((f) => (
+        <CustomFieldRender
+          key={f.id}
+          field={f}
+          value={answers[String(f.id)] ?? ""}
+          onChange={(v) => setAnswers({ ...answers, [String(f.id)]: v })}
+        />
+      ))}
+
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <button
@@ -177,4 +192,105 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </div>
   );
+}
+
+function CustomFieldRender({
+  field, value, onChange,
+}: {
+  field: FormField;
+  value: string | string[];
+  onChange: (v: string | string[]) => void;
+}) {
+  const label = `${field.label}${field.required ? " *" : ""}`;
+  const options = field.options ?? (field.options_json ? safeParseStringArray(field.options_json) : []) ?? [];
+  const v = typeof value === "string" ? value : "";
+
+  let control: React.ReactNode = null;
+  switch (field.type) {
+    case "short_text":
+      control = <input value={v} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder ?? ""} required={!!field.required} className={inputCls} />;
+      break;
+    case "long_text":
+      control = <textarea value={v} onChange={(e) => onChange(e.target.value)} rows={3} placeholder={field.placeholder ?? ""} required={!!field.required} className={inputCls} />;
+      break;
+    case "email":
+      control = <input type="email" value={v} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder ?? ""} required={!!field.required} className={inputCls} />;
+      break;
+    case "phone":
+      control = <input type="tel" value={v} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder ?? ""} required={!!field.required} className={inputCls} />;
+      break;
+    case "url":
+      control = <input type="url" value={v} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder ?? "https://…"} required={!!field.required} className={inputCls} />;
+      break;
+    case "number":
+      control = <input type="number" value={v} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder ?? ""} required={!!field.required} className={inputCls} />;
+      break;
+    case "date":
+      control = <input type="date" value={v} onChange={(e) => onChange(e.target.value)} required={!!field.required} className={inputCls} />;
+      break;
+    case "yes_no":
+      control = (
+        <div className="flex gap-2">
+          {["yes","no"].map((opt) => (
+            <label key={opt} className={`flex-1 cursor-pointer text-sm rounded-lg border px-3 py-2 text-center ${v === opt ? "bg-indigo-50 border-indigo-400 ring-2 ring-indigo-200 font-medium" : "border-slate-300 bg-white hover:bg-slate-50"}`}>
+              <input type="radio" name={`f${field.id}`} className="sr-only" checked={v === opt} onChange={() => onChange(opt)} />
+              {opt === "yes" ? "Yes" : "No"}
+            </label>
+          ))}
+        </div>
+      );
+      break;
+    case "choice":
+      control = (
+        <div className="space-y-1.5">
+          {options.map((o) => (
+            <label key={o} className={`flex items-center gap-2 cursor-pointer text-sm rounded-lg border px-3 py-2 ${v === o ? "bg-indigo-50 border-indigo-400 ring-2 ring-indigo-200" : "border-slate-300 bg-white hover:bg-slate-50"}`}>
+              <input type="radio" name={`f${field.id}`} checked={v === o} onChange={() => onChange(o)} />
+              <span>{o}</span>
+            </label>
+          ))}
+        </div>
+      );
+      break;
+    case "multi_choice": {
+      const arr = Array.isArray(value) ? value : [];
+      control = (
+        <div className="space-y-1.5">
+          {options.map((o) => {
+            const selected = arr.includes(o);
+            return (
+              <label key={o} className={`flex items-center gap-2 cursor-pointer text-sm rounded-lg border px-3 py-2 ${selected ? "bg-indigo-50 border-indigo-400 ring-2 ring-indigo-200" : "border-slate-300 bg-white hover:bg-slate-50"}`}>
+                <input
+                  type="checkbox"
+                  checked={selected}
+                  onChange={(e) => {
+                    if (e.target.checked) onChange([...arr, o]);
+                    else onChange(arr.filter((x) => x !== o));
+                  }}
+                />
+                <span>{o}</span>
+              </label>
+            );
+          })}
+        </div>
+      );
+      break;
+    }
+  }
+
+  return (
+    <div>
+      <label className="block text-xs font-medium text-slate-700 uppercase tracking-wide mb-1">{label}</label>
+      {control}
+      {field.helper_text && <p className="text-xs text-slate-500 mt-1">{field.helper_text}</p>}
+    </div>
+  );
+}
+
+function safeParseStringArray(json: string): string[] | undefined {
+  try {
+    const p = JSON.parse(json);
+    if (Array.isArray(p)) return p.map(String);
+  } catch { /* fall through */ }
+  return undefined;
 }

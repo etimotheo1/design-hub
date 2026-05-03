@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { get, run } from "@/lib/db";
+import { all, get, run } from "@/lib/db";
 import { ensureExternalUser, ensureInboxProject } from "@/lib/auth";
-import type { ShareableForm } from "@/lib/types";
+import type { FormField, ShareableForm } from "@/lib/types";
 
 // Public submission endpoint — anyone with the form token can POST to it.
 // Creates a Card in the appropriate project and logs to form_submissions.
@@ -86,11 +86,54 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
   run(`INSERT INTO stage_history (card_id, stage) VALUES (?, 'idea')`, [cardId]);
 
   // Audit-log the submission.
-  run(
+  const subResult = run(
     `INSERT INTO form_submissions (form_id, card_id, submitter_name, submitter_email)
      VALUES (?, ?, ?, ?)`,
     [form.id, cardId, submitterName, submitterEmail]
   );
+  const submissionId = Number(subResult.lastInsertRowid);
+
+  // Save answers to the form's custom fields.
+  // body.answers is an object keyed by field_id (string) → value (string or string[]).
+  const answers = (body.answers ?? {}) as Record<string, string | string[]>;
+  const fields = all<FormField>(
+    `SELECT * FROM form_fields WHERE form_id = ?`,
+    [form.id]
+  );
+
+  for (const f of fields) {
+    const raw = answers[String(f.id)];
+    let value: string | null = null;
+
+    if (raw == null || raw === "") {
+      if (f.required) {
+        return NextResponse.json({ ok: false, error: `"${f.label}" is required.` }, { status: 400 });
+      }
+      // not required and empty → skip
+      continue;
+    }
+
+    if (Array.isArray(raw)) {
+      // multi_choice → store JSON-stringified array
+      const cleaned = raw.map((s) => String(s).trim()).filter(Boolean);
+      if (cleaned.length === 0) {
+        if (f.required) return NextResponse.json({ ok: false, error: `"${f.label}" is required.` }, { status: 400 });
+        continue;
+      }
+      value = JSON.stringify(cleaned);
+    } else {
+      value = String(raw).trim();
+      if (!value) {
+        if (f.required) return NextResponse.json({ ok: false, error: `"${f.label}" is required.` }, { status: 400 });
+        continue;
+      }
+    }
+
+    run(
+      `INSERT INTO form_field_answers (submission_id, field_id, value) VALUES (?, ?, ?)`,
+      [submissionId, f.id, value]
+    );
+  }
 
   return NextResponse.json({
     ok: true,
