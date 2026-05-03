@@ -234,13 +234,13 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
               </span>
             )}
           </div>
-          {projects.length > 4 && (
-            <div className="relative">
+          {projects.length > 0 && (
+            <div className="relative w-full sm:w-56">
               <input
                 value={projectSearch}
                 onChange={(e) => setProjectSearch(e.target.value)}
                 placeholder="Search projects…"
-                className="text-sm rounded-lg border border-slate-300 px-3 py-1.5 pl-8 bg-white w-56 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="text-sm rounded-lg border border-slate-300 px-3 py-1.5 pl-8 bg-white w-full focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
               <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
               {projectSearch && (

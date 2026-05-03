@@ -16,7 +16,8 @@ export default function ProjectsManager({ isAdmin }: { isAdmin: boolean }) {
   const [editColor, setEditColor] = useState<ColorToken | null>(null);
 
   async function load() {
-    const res = await fetch("/api/projects");
+    // Admin view shows all projects (including hidden ones) so admins can unhide.
+    const res = await fetch(`/api/projects?include_hidden=${isAdmin ? "1" : "0"}`);
     const data = await res.json();
     if (data.ok) setProjects(data.projects);
   }
@@ -54,11 +55,11 @@ export default function ProjectsManager({ isAdmin }: { isAdmin: boolean }) {
     load();
   }
 
-  async function archive(id: number) {
+  async function setHidden(id: number, hidden: boolean) {
     await fetch(`/api/projects/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ archived: 1 }),
+      body: JSON.stringify({ archived: hidden ? 1 : 0 }),
     });
     load();
   }
@@ -134,13 +135,29 @@ export default function ProjectsManager({ isAdmin }: { isAdmin: boolean }) {
                 <div className="min-w-0 flex items-start gap-3">
                   <span className={`mt-1.5 h-3 w-3 rounded-full flex-shrink-0 ${colorClasses(p.color).dot}`}></span>
                   <div>
-                    <h3 className="font-medium text-slate-900">{p.name}</h3>
-                    {p.description && <p className="text-sm text-slate-500 mt-0.5">{p.description}</p>}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className={`font-medium ${p.archived ? "text-slate-400 line-through" : "text-slate-900"}`}>{p.name}</h3>
+                      {p.archived ? (
+                        <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold">Hidden</span>
+                      ) : null}
+                    </div>
+                    {p.description && <p className={`text-sm mt-0.5 ${p.archived ? "text-slate-400" : "text-slate-500"}`}>{p.description}</p>}
+                    {p.archived && (
+                      <p className="text-xs text-slate-500 mt-1 italic">
+                        Hidden from Bucketlist, Board, Pipeline, Dashboard, and Approvals.
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <button onClick={() => startEdit(p)} className="text-sm text-slate-600 hover:text-slate-900">Edit</button>
-                  <button onClick={() => archive(p.id)} className="text-sm text-slate-500 hover:text-slate-900">Archive</button>
+                  {isAdmin && (
+                    p.archived ? (
+                      <button onClick={() => setHidden(p.id, false)} className="text-sm text-emerald-600 hover:text-emerald-800 font-medium">Unhide</button>
+                    ) : (
+                      <button onClick={() => setHidden(p.id, true)} className="text-sm text-slate-500 hover:text-slate-900">Hide</button>
+                    )
+                  )}
                   {isAdmin && (
                     <button onClick={() => remove(p.id)} className="text-sm text-red-600 hover:text-red-800">Delete</button>
                   )}
