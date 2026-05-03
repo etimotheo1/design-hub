@@ -30,6 +30,13 @@ export interface TaxonomyItem {
   created_at: string;
 }
 
+export type EmploymentType = "FTE" | "Consulting" | "Gig" | "Intern" | "Other";
+export type WorkMode = "Inhouse" | "Remote" | "Hybrid";
+export type AccessPolicy = "standard" | "restricted";
+
+export const EMPLOYMENT_TYPES: EmploymentType[] = ["FTE", "Consulting", "Gig", "Intern", "Other"];
+export const WORK_MODES: WorkMode[] = ["Inhouse", "Remote", "Hybrid"];
+
 export interface User {
   id: number;
   username: string;
@@ -37,16 +44,37 @@ export interface User {
   display_name: string;
   role: "admin" | "tech" | "non_tech";
   must_change_password: number; // 0 or 1
+  phone: string | null;
+  title: string | null;            // job title (e.g. "COO")
+  bio: string | null;
+  employment_type: EmploymentType | null;
+  work_mode: WorkMode | null;
+  profile_picture_url: string | null;
+  access_policy: AccessPolicy;
   created_at: string;
 }
+
+export type ProjectVisibility = "public" | "private";
 
 export interface Project {
   id: number;
   name: string;
   description: string | null;
   color: string | null; // ColorToken (see lib/colors.ts) or null
-  archived: number; // SQLite bool: 0/1
+  visibility: ProjectVisibility;
+  created_by: number | null;
+  archived: number; // SQLite bool: 0/1 — also used as "hidden" in the UI
   created_at: string;
+}
+
+export interface ProjectMember {
+  project_id: number;
+  user_id: number;
+  role: "member" | "lead";
+  granted_by: number;
+  granted_at: string;
+  display_name?: string; // populated from JOIN
+  email?: string | null;
 }
 
 export interface Card {

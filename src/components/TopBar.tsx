@@ -107,12 +107,16 @@ export default function TopBar({ user }: { user: SessionUser }) {
             onClick={() => setMenuOpen(false)}
           />
           <div className="md:hidden fixed top-14 left-0 right-0 z-30 bg-white border-b border-slate-200 shadow-lg">
-            <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
-              <span className="text-sm font-semibold text-slate-900">{user.display_name}</span>
+            <Link
+              href="/profile"
+              className="px-4 py-3 border-b border-slate-100 flex items-center gap-2 hover:bg-slate-50"
+            >
+              <span className="text-sm font-semibold text-slate-900 flex-1">{user.display_name}</span>
               <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-brand-accentMuted text-brand-accent font-semibold">
                 {roleLabel}
               </span>
-            </div>
+              <span className="text-xs text-slate-400">Profile →</span>
+            </Link>
             <nav className="p-2 space-y-1">
               {tabs.map((t) => (
                 <Link key={t.href} href={t.href} className={mobileTabClass(pathname === t.href)}>

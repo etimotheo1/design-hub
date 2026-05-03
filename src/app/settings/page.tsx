@@ -21,22 +21,34 @@ export default function SettingsPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Card
+              href="/profile"
+              title="My profile"
+              description="Display name, picture, contact info, employment type, work mode."
+              icon="🪪"
+            />
+            <Card
               href="/admin/users"
               title="Users"
               description="Invite people to Design Hub. Manage roles and revoke access."
               icon="👥"
             />
             <Card
-              href="/admin/taxonomy"
-              title="Tags"
-              description="Edit the Categories and Types used to label ideas."
-              icon="🏷️"
+              href="/admin/access"
+              title="Access"
+              description="Roles, access policies, and per-project membership in one place."
+              icon="🔑"
             />
             <Card
               href="/projects"
               title="Projects"
-              description="Manage initiatives that group cards together."
+              description="Manage initiatives. Public, private, or hidden."
               icon="📁"
+            />
+            <Card
+              href="/admin/taxonomy"
+              title="Tags"
+              description="Edit the Categories and Types used to label ideas."
+              icon="🏷️"
             />
             <Card
               href="/change-password"

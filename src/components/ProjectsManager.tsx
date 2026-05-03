@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import type { Project } from "@/lib/types";
+import type { Project, ProjectVisibility } from "@/lib/types";
 import { colorClasses, type ColorToken } from "@/lib/colors";
 import ColorPicker from "./ColorPicker";
 
@@ -9,11 +9,13 @@ export default function ProjectsManager({ isAdmin }: { isAdmin: boolean }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [color, setColor] = useState<ColorToken | null>(null);
+  const [visibility, setVisibility] = useState<ProjectVisibility>("public");
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [editColor, setEditColor] = useState<ColorToken | null>(null);
+  const [editVisibility, setEditVisibility] = useState<ProjectVisibility>("public");
 
   async function load() {
     // Admin view shows all projects (including hidden ones) so admins can unhide.
@@ -30,11 +32,11 @@ export default function ProjectsManager({ isAdmin }: { isAdmin: boolean }) {
     const res = await fetch("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, description, color }),
+      body: JSON.stringify({ name, description, color, visibility }),
     });
     const data = await res.json();
     if (!data.ok) { setError(data.error); return; }
-    setName(""); setDescription(""); setColor(null);
+    setName(""); setDescription(""); setColor(null); setVisibility("public");
     load();
   }
 
@@ -43,13 +45,14 @@ export default function ProjectsManager({ isAdmin }: { isAdmin: boolean }) {
     setEditName(p.name);
     setEditDesc(p.description || "");
     setEditColor((p.color as ColorToken | null) ?? null);
+    setEditVisibility(p.visibility ?? "public");
   }
 
   async function saveEdit(id: number) {
     await fetch(`/api/projects/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: editName, description: editDesc, color: editColor }),
+      body: JSON.stringify({ name: editName, description: editDesc, color: editColor, visibility: editVisibility }),
     });
     setEditingId(null);
     load();
@@ -93,6 +96,21 @@ export default function ProjectsManager({ isAdmin }: { isAdmin: boolean }) {
             <span className="text-xs text-slate-500 block mb-1.5">Color</span>
             <ColorPicker value={color} onChange={setColor} />
           </div>
+          <div>
+            <span className="text-xs text-slate-500 block mb-1.5">Visibility</span>
+            <div className="flex gap-2">
+              <label className={`flex-1 cursor-pointer text-sm rounded-lg border px-3 py-2 ${visibility === "public" ? "bg-emerald-50 border-emerald-400 ring-2 ring-emerald-200" : "border-slate-300 bg-white hover:bg-slate-50"}`}>
+                <input type="radio" name="vis" className="sr-only" checked={visibility === "public"} onChange={() => setVisibility("public")} />
+                <div className="font-medium">🌐 Public</div>
+                <div className="text-xs text-slate-500">All standard-access users see it.</div>
+              </label>
+              <label className={`flex-1 cursor-pointer text-sm rounded-lg border px-3 py-2 ${visibility === "private" ? "bg-indigo-50 border-indigo-400 ring-2 ring-indigo-200" : "border-slate-300 bg-white hover:bg-slate-50"}`}>
+                <input type="radio" name="vis" className="sr-only" checked={visibility === "private"} onChange={() => setVisibility("private")} />
+                <div className="font-medium">🔒 Private</div>
+                <div className="text-xs text-slate-500">Only members + admins see it.</div>
+              </label>
+            </div>
+          </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex justify-end">
             <button type="submit" className="text-sm px-3 py-1.5 rounded-lg bg-brand text-white hover:bg-slate-800">
@@ -125,6 +143,13 @@ export default function ProjectsManager({ isAdmin }: { isAdmin: boolean }) {
                   <span className="text-xs text-slate-500 block mb-1.5">Color</span>
                   <ColorPicker value={editColor} onChange={setEditColor} />
                 </div>
+                <div>
+                  <span className="text-xs text-slate-500 block mb-1.5">Visibility</span>
+                  <select value={editVisibility} onChange={(e) => setEditVisibility(e.target.value as ProjectVisibility)} className="text-sm rounded-lg border border-slate-300 px-3 py-1.5 bg-white">
+                    <option value="public">🌐 Public</option>
+                    <option value="private">🔒 Private (members only)</option>
+                  </select>
+                </div>
                 <div className="flex gap-2 justify-end">
                   <button onClick={() => setEditingId(null)} className="text-sm px-3 py-1.5 rounded-lg hover:bg-slate-100">Cancel</button>
                   <button onClick={() => saveEdit(p.id)} className="text-sm px-3 py-1.5 rounded-lg bg-brand text-white hover:bg-slate-800">Save</button>
@@ -137,6 +162,9 @@ export default function ProjectsManager({ isAdmin }: { isAdmin: boolean }) {
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className={`font-medium ${p.archived ? "text-slate-400 line-through" : "text-slate-900"}`}>{p.name}</h3>
+                      {p.visibility === "private" && (
+                        <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 font-semibold">🔒 Private</span>
+                      )}
                       {p.archived ? (
                         <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold">Hidden</span>
                       ) : null}

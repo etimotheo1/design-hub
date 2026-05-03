@@ -208,6 +208,23 @@ function initSchema(db: DatabaseSync) {
     );
     CREATE INDEX IF NOT EXISTS idx_collab_card ON card_collaborators(card_id);
     CREATE INDEX IF NOT EXISTS idx_collab_user ON card_collaborators(user_id);
+
+    -- Per-project membership. Private projects rely on this to grant access;
+    -- public projects use it for "explicit member" badges and notifications
+    -- but everyone with access_policy=standard can still see them.
+    CREATE TABLE IF NOT EXISTS project_members (
+      project_id INTEGER NOT NULL,
+      user_id    INTEGER NOT NULL,
+      role       TEXT NOT NULL DEFAULT 'member',  -- 'member' | 'lead'
+      granted_by INTEGER NOT NULL,
+      granted_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (project_id, user_id),
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id)    REFERENCES users(id)    ON DELETE CASCADE,
+      FOREIGN KEY (granted_by) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_pmember_project ON project_members(project_id);
+    CREATE INDEX IF NOT EXISTS idx_pmember_user    ON project_members(user_id);
   `);
 
   // Additive migrations for older DBs that pre-date these columns.
@@ -244,6 +261,28 @@ function initSchema(db: DatabaseSync) {
     db.exec(`UPDATE categories SET color = 'pink'    WHERE name = 'Marketing'    AND color IS NULL`);
     db.exec(`UPDATE categories SET color = 'amber'   WHERE name = 'Operations'   AND color IS NULL`);
     db.exec(`UPDATE categories SET color = 'slate'   WHERE name = 'Other'        AND color IS NULL`);
+  }
+
+  // === Profile + access fields (additive — never overwrite user data) ===
+  if (!tableHasColumn(db, "users", "phone"))               db.exec(`ALTER TABLE users ADD COLUMN phone TEXT`);
+  if (!tableHasColumn(db, "users", "employment_type"))     db.exec(`ALTER TABLE users ADD COLUMN employment_type TEXT`);  // 'FTE' | 'Consulting' | 'Gig' | 'Intern' | 'Other'
+  if (!tableHasColumn(db, "users", "work_mode"))           db.exec(`ALTER TABLE users ADD COLUMN work_mode TEXT`);        // 'Inhouse' | 'Remote' | 'Hybrid'
+  if (!tableHasColumn(db, "users", "profile_picture_url")) db.exec(`ALTER TABLE users ADD COLUMN profile_picture_url TEXT`);
+  if (!tableHasColumn(db, "users", "title"))               db.exec(`ALTER TABLE users ADD COLUMN title TEXT`);            // job title, e.g. "COO"
+  if (!tableHasColumn(db, "users", "bio"))                 db.exec(`ALTER TABLE users ADD COLUMN bio TEXT`);
+  if (!tableHasColumn(db, "users", "access_policy")) {
+    // 'standard' (default) — sees all public projects + memberships
+    // 'restricted' — sees only projects they're explicit members of
+    db.exec(`ALTER TABLE users ADD COLUMN access_policy TEXT NOT NULL DEFAULT 'standard'`);
+  }
+
+  if (!tableHasColumn(db, "projects", "visibility")) {
+    // 'public' (default for legacy projects) — all standard-access users see it
+    // 'private' — only members + the creator + admins
+    db.exec(`ALTER TABLE projects ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public'`);
+  }
+  if (!tableHasColumn(db, "projects", "created_by")) {
+    db.exec(`ALTER TABLE projects ADD COLUMN created_by INTEGER`);
   }
 
   // One-time heal: any admin stuck with the forced-change flag gets cleared.

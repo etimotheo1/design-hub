@@ -24,6 +24,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     fields.push("color = ?");
     values.push(body.color || null);
   }
+  if (body.visibility === "public" || body.visibility === "private") {
+    fields.push("visibility = ?");
+    values.push(body.visibility);
+  }
   if (typeof body.archived === "number") {
     fields.push("archived = ?");
     values.push(body.archived);
