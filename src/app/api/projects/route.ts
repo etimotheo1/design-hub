@@ -49,15 +49,16 @@ export async function POST(req: NextRequest) {
   const user = getCurrentUser();
   if (!user) return NextResponse.json({ ok: false, error: "unauth" }, { status: 401 });
 
-  const { name, description, color, visibility } = await req.json();
+  const { name, description, color, visibility, workflow_id } = await req.json();
   if (!name?.trim()) return NextResponse.json({ ok: false, error: "Name required" }, { status: 400 });
   const safeColor = isValidColor(color) ? color : null;
   const safeVisibility = visibility === "private" ? "private" : "public";
+  const safeWorkflowId = workflow_id ? Number(workflow_id) : null;
 
   try {
     const result = run(
-      `INSERT INTO projects (name, description, color, visibility, created_by) VALUES (?, ?, ?, ?, ?)`,
-      [name.trim(), description?.trim() || null, safeColor, safeVisibility, user.id]
+      `INSERT INTO projects (name, description, color, visibility, created_by, workflow_id) VALUES (?, ?, ?, ?, ?, ?)`,
+      [name.trim(), description?.trim() || null, safeColor, safeVisibility, user.id, safeWorkflowId]
     );
     // Auto-add the creator as a 'lead' member so they always have access to
     // their own private projects even if their access policy is 'restricted'.

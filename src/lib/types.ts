@@ -64,6 +64,7 @@ export interface Project {
   visibility: ProjectVisibility;
   created_by: number | null;
   archived: number; // SQLite bool: 0/1 — also used as "hidden" in the UI
+  workflow_id: number | null;
   created_at: string;
 }
 
@@ -84,6 +85,36 @@ export interface ProjectStageApprover {
   added_by: number;
   added_at: string;
   display_name?: string;
+}
+
+export interface Designation {
+  id: number;
+  name: string;
+  description: string | null;
+  sort_order: number;
+  archived: number;
+  created_at: string;
+}
+
+export interface Workflow {
+  id: number;
+  name: string;
+  description: string | null;
+  created_by: number | null;
+  created_at: string;
+}
+
+export interface WorkflowTransition {
+  id: number;
+  workflow_id: number;
+  from_stage: Stage;
+  to_stage: Stage;
+}
+
+export interface WorkflowStageLabel {
+  workflow_id: number;
+  stage: Stage;
+  label: string;
 }
 
 export interface Card {

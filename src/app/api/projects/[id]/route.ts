@@ -28,6 +28,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     fields.push("visibility = ?");
     values.push(body.visibility);
   }
+  if ("workflow_id" in body) {
+    fields.push("workflow_id = ?");
+    values.push(body.workflow_id ? Number(body.workflow_id) : null);
+  }
   if (typeof body.archived === "number") {
     fields.push("archived = ?");
     values.push(body.archived);

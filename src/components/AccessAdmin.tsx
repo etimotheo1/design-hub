@@ -12,6 +12,8 @@ type AccessUser = {
   employment_type: string | null;
   work_mode: string | null;
   title: string | null;
+  designation_id: number | null;
+  designation_name: string | null;
 };
 type AccessProject = {
   id: number;
@@ -22,17 +24,22 @@ type AccessProject = {
   created_by: number | null;
 };
 type Membership = { project_id: number; user_id: number; role: "member" | "lead" };
+type DesignationItem = { id: number; name: string };
 type Data = { users: AccessUser[]; projects: AccessProject[]; memberships: Membership[] };
 
 export default function AccessAdmin() {
   const [data, setData] = useState<Data | null>(null);
+  const [designations, setDesignations] = useState<DesignationItem[]>([]);
   const [filter, setFilter] = useState("");
   const [openUser, setOpenUser] = useState<number | null>(null);
 
   async function load() {
-    const r = await fetch("/api/admin/access");
-    const j = await r.json();
-    if (j.ok) setData(j);
+    const [a, d] = await Promise.all([
+      fetch("/api/admin/access").then((r) => r.json()),
+      fetch("/api/admin/designations").then((r) => r.json()),
+    ]);
+    if (a.ok) setData(a);
+    if (d.ok) setDesignations(d.designations.filter((x: { archived: number }) => !x.archived));
   }
   useEffect(() => { load(); }, []);
 
@@ -122,6 +129,7 @@ export default function AccessAdmin() {
                   </div>
                   <div className="text-xs text-slate-500 mt-0.5 truncate">
                     {u.email || <span className="italic">(no email)</span>}
+                    {u.designation_name && <> · <span className="font-medium text-slate-700">{u.designation_name}</span></>}
                     {u.title && <> · {u.title}</>}
                     {u.employment_type && <> · {u.employment_type}</>}
                     {u.work_mode && <> · {u.work_mode}</>}
@@ -164,6 +172,18 @@ export default function AccessAdmin() {
                         <option value="standard">Standard — sees all public + invited private</option>
                         <option value="restricted">Restricted — only sees invited projects</option>
                       </select>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-medium text-slate-700 uppercase tracking-wide block mb-1">Designation (drives workflow approvals)</label>
+                      <select
+                        value={u.designation_id ?? ""}
+                        onChange={(e) => patchUser(u.id, { designation_id: e.target.value ? Number(e.target.value) : null })}
+                        className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 bg-white"
+                      >
+                        <option value="">— not assigned —</option>
+                        {designations.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                      </select>
+                      <p className="text-[11px] text-slate-500 mt-1">Manage the list at <a href="/admin/designations" className="text-indigo-600 underline">Settings → Designations</a>.</p>
                     </div>
                   </div>
 

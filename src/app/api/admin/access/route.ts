@@ -11,8 +11,11 @@ export async function GET() {
   if (me.role !== "admin") return NextResponse.json({ ok: false, error: "Admins only." }, { status: 403 });
 
   const users = all(`
-    SELECT id, username, email, display_name, role, access_policy, employment_type, work_mode, title
-    FROM users ORDER BY display_name
+    SELECT u.id, u.username, u.email, u.display_name, u.role, u.access_policy,
+           u.employment_type, u.work_mode, u.title,
+           u.designation_id, d.name AS designation_name
+    FROM users u LEFT JOIN designations d ON d.id = u.designation_id
+    ORDER BY u.display_name
   `);
   const projects = all(`SELECT id, name, color, visibility, archived, created_by FROM projects ORDER BY name`);
   const memberships = all(`
@@ -48,6 +51,9 @@ export async function PATCH(req: NextRequest) {
   }
   if (typeof body.title === "string" || body.title === null) {
     fields.push("title = ?"); values.push(body.title?.trim() || null);
+  }
+  if ("designation_id" in body) {
+    fields.push("designation_id = ?"); values.push(body.designation_id ? Number(body.designation_id) : null);
   }
 
   if (fields.length === 0) return NextResponse.json({ ok: true });

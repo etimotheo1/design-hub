@@ -57,6 +57,18 @@ export default function SettingsPage() {
               icon="🏷️"
             />
             <Card
+              href="/admin/designations"
+              title="Designations"
+              description="Job titles or hierarchy levels (CEO, Manager, Engineer)."
+              icon="🎖️"
+            />
+            <Card
+              href="/admin/workflows"
+              title="Workflows"
+              description="Standard workflow templates per team. Designation-based approvals per transition."
+              icon="🔁"
+            />
+            <Card
               href="/change-password"
               title="My password"
               description="Change your own password."
