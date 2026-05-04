@@ -22,6 +22,7 @@ export default function TopBar({ user }: { user: SessionUser }) {
   type Tab = { href: string; label: string };
   const tabs: Tab[] = [
     { href: "/dashboard",  label: "Dashboard"   },
+    { href: "/weekly",     label: "Weekly"      },
     { href: "/bucketlist", label: "Bucketlist"  },
     { href: "/board",      label: "Board"       },
     { href: "/pipeline",   label: "Pipeline"    },

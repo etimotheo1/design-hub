@@ -103,6 +103,28 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const newStage = body.stage as Stage;
     const existing = get<Card>(`SELECT * FROM cards WHERE id = ?`, [id]);
     if (existing && existing.stage !== newStage) {
+      // Approval enforcement: if any approvers are configured for this stage
+      // in this project, the user must be one of them (admins always pass).
+      if (user.role !== "admin") {
+        const approvers = get<{ c: number }>(
+          `SELECT COUNT(*) AS c FROM project_stage_approvers WHERE project_id = ? AND stage = ?`,
+          [existing.project_id, newStage]
+        );
+        const isConfigured = (approvers?.c ?? 0) > 0;
+        if (isConfigured) {
+          const allowed = !!get(
+            `SELECT 1 FROM project_stage_approvers WHERE project_id = ? AND stage = ? AND user_id = ?`,
+            [existing.project_id, newStage, user.id]
+          );
+          if (!allowed) {
+            return NextResponse.json(
+              { ok: false, error: `You don't have approval rights to move cards into ${newStage}. Ask a designated approver.` },
+              { status: 403 }
+            );
+          }
+        }
+      }
+
       stageChanged = newStage;
       fields.push("stage = ?"); values.push(newStage);
       // When stage changes, push to bottom of new column.

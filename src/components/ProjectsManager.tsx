@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { Project, ProjectVisibility } from "@/lib/types";
 import { colorClasses, type ColorToken } from "@/lib/colors";
 import ColorPicker from "./ColorPicker";
+import ApprovalWorkflow from "./ApprovalWorkflow";
 
 export default function ProjectsManager({ isAdmin }: { isAdmin: boolean }) {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -16,6 +17,7 @@ export default function ProjectsManager({ isAdmin }: { isAdmin: boolean }) {
   const [editDesc, setEditDesc] = useState("");
   const [editColor, setEditColor] = useState<ColorToken | null>(null);
   const [editVisibility, setEditVisibility] = useState<ProjectVisibility>("public");
+  const [showWorkflowFor, setShowWorkflowFor] = useState<number | null>(null);
 
   async function load() {
     // Admin view shows all projects (including hidden ones) so admins can unhide.
@@ -178,6 +180,12 @@ export default function ProjectsManager({ isAdmin }: { isAdmin: boolean }) {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => setShowWorkflowFor(showWorkflowFor === p.id ? null : p.id)}
+                    className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+                  >
+                    {showWorkflowFor === p.id ? "Close workflow" : "Workflow"}
+                  </button>
                   <button onClick={() => startEdit(p)} className="text-sm text-slate-600 hover:text-slate-900">Edit</button>
                   {isAdmin && (
                     p.archived ? (
@@ -190,6 +198,12 @@ export default function ProjectsManager({ isAdmin }: { isAdmin: boolean }) {
                     <button onClick={() => remove(p.id)} className="text-sm text-red-600 hover:text-red-800">Delete</button>
                   )}
                 </div>
+              </div>
+            )}
+            {showWorkflowFor === p.id && editingId !== p.id && (
+              <div className="mt-4 pt-4 border-t border-slate-200">
+                <h4 className="text-sm font-semibold text-slate-900 mb-3">Approval workflow for {p.name}</h4>
+                <ApprovalWorkflow projectId={p.id} />
               </div>
             )}
           </div>

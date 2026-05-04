@@ -77,6 +77,15 @@ export interface ProjectMember {
   email?: string | null;
 }
 
+export interface ProjectStageApprover {
+  project_id: number;
+  stage: Stage;
+  user_id: number;
+  added_by: number;
+  added_at: string;
+  display_name?: string;
+}
+
 export interface Card {
   id: number;
   project_id: number;
