@@ -39,11 +39,14 @@ export default function DesignationsAdmin() {
 
   async function quickAdd(value: string) {
     if (items.find((d) => d.name.toLowerCase() === value.toLowerCase())) return;
-    await fetch("/api/admin/designations", {
+    setError(null);
+    const res = await fetch("/api/admin/designations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: value }),
     });
+    const j = await res.json().catch(() => ({ ok: false, error: "Server error" }));
+    if (!j.ok) { setError(j.error || `Could not add "${value}".`); return; }
     load();
   }
 

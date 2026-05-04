@@ -353,6 +353,93 @@ function initSchema(db: DatabaseSync) {
     CREATE INDEX IF NOT EXISTS idx_ans_submission ON form_field_answers(submission_id);
   `);
 
+  // === Designations + Workflows (additive — no defaults seeded) ===
+  // Designations are job titles / hierarchy levels (CEO, Manager, Line Manager,
+  // Supervisor, Engineer...). They power workflow approval rules.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS designations (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      name        TEXT NOT NULL UNIQUE,
+      description TEXT,
+      archived    INTEGER NOT NULL DEFAULT 0,
+      sort_order  INTEGER NOT NULL DEFAULT 0,
+      created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- A workflow is a named template of stage transitions. Each project
+    -- optionally references one (projects.workflow_id).
+    CREATE TABLE IF NOT EXISTS workflows (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      name        TEXT NOT NULL UNIQUE,
+      description TEXT,
+      archived    INTEGER NOT NULL DEFAULT 0,
+      created_by  INTEGER,
+      created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    );
+
+    -- Each transition (e.g. idea→design) belongs to a workflow.
+    CREATE TABLE IF NOT EXISTS workflow_transitions (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      workflow_id INTEGER NOT NULL,
+      from_stage  TEXT NOT NULL,
+      to_stage    TEXT NOT NULL,
+      label       TEXT,
+      UNIQUE (workflow_id, from_stage, to_stage),
+      FOREIGN KEY (workflow_id) REFERENCES workflows(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_wt_workflow ON workflow_transitions(workflow_id);
+
+    -- Designations allowed to perform a given transition. If a transition has
+    -- no rows here, anyone can perform it (open transition).
+    CREATE TABLE IF NOT EXISTS workflow_transition_designations (
+      transition_id   INTEGER NOT NULL,
+      designation_id  INTEGER NOT NULL,
+      PRIMARY KEY (transition_id, designation_id),
+      FOREIGN KEY (transition_id)  REFERENCES workflow_transitions(id) ON DELETE CASCADE,
+      FOREIGN KEY (designation_id) REFERENCES designations(id)         ON DELETE CASCADE
+    );
+
+    -- Stage move requests: every stage change goes through this table.
+    -- status: 'auto_approved' (user had rights), 'pending' (waiting for approver),
+    --         'approved', 'rejected'.
+    CREATE TABLE IF NOT EXISTS stage_moves (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      card_id         INTEGER NOT NULL,
+      from_stage      TEXT NOT NULL,
+      to_stage        TEXT NOT NULL,
+      requested_by    INTEGER NOT NULL,
+      summary         TEXT NOT NULL,
+      status          TEXT NOT NULL DEFAULT 'pending',
+      decided_by      INTEGER,
+      decided_at      TEXT,
+      decision_note   TEXT,
+      created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (card_id)      REFERENCES cards(id) ON DELETE CASCADE,
+      FOREIGN KEY (requested_by) REFERENCES users(id),
+      FOREIGN KEY (decided_by)   REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_stage_moves_card    ON stage_moves(card_id);
+    CREATE INDEX IF NOT EXISTS idx_stage_moves_status  ON stage_moves(status);
+
+    CREATE TABLE IF NOT EXISTS stage_move_attachments (
+      id        INTEGER PRIMARY KEY AUTOINCREMENT,
+      move_id   INTEGER NOT NULL,
+      label     TEXT NOT NULL,
+      url       TEXT NOT NULL,
+      FOREIGN KEY (move_id) REFERENCES stage_moves(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_stage_move_att_move ON stage_move_attachments(move_id);
+  `);
+
+  // Add designation_id column on users + workflow_id column on projects, additively.
+  if (!tableHasColumn(db, "users", "designation_id")) {
+    db.exec(`ALTER TABLE users ADD COLUMN designation_id INTEGER`);
+  }
+  if (!tableHasColumn(db, "projects", "workflow_id")) {
+    db.exec(`ALTER TABLE projects ADD COLUMN workflow_id INTEGER`);
+  }
+
   // One-time heal: any admin stuck with the forced-change flag gets cleared.
   // (Earlier versions seeded the admin with must_change_password = 1, which
   // could repeatedly send the admin to /change-password. The seeded admin
