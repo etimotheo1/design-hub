@@ -400,6 +400,16 @@ function initSchema(db: DatabaseSync) {
       FOREIGN KEY (designation_id) REFERENCES designations(id)         ON DELETE CASCADE
     );
 
+    -- Optional per-workflow stage label overrides. Lets a workflow rename a
+    -- stage in display only (e.g. show "Idea" as "Bucketlist" for a tech team).
+    CREATE TABLE IF NOT EXISTS workflow_stage_labels (
+      workflow_id INTEGER NOT NULL,
+      stage       TEXT NOT NULL,
+      label       TEXT NOT NULL,
+      PRIMARY KEY (workflow_id, stage),
+      FOREIGN KEY (workflow_id) REFERENCES workflows(id) ON DELETE CASCADE
+    );
+
     -- Stage move requests: every stage change goes through this table.
     -- status: 'auto_approved' (user had rights), 'pending' (waiting for approver),
     --         'approved', 'rejected'.

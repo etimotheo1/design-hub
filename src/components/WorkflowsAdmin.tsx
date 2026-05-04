@@ -102,14 +102,22 @@ function WorkflowEditor({ workflowId, designations, onChanged }: { workflowId: n
   const [detail, setDetail] = useState<WorkflowDetail | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   async function load() {
-    const res = await fetch(`/api/admin/workflows/${workflowId}`);
-    const j = await res.json();
-    if (j.ok) {
+    setLoadError(null);
+    try {
+      const res = await fetch(`/api/admin/workflows/${workflowId}`);
+      const j = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
+      if (!j.ok) {
+        setLoadError(j.error || `HTTP ${res.status}`);
+        return;
+      }
       setDetail(j);
       setName(j.workflow.name);
       setDescription(j.workflow.description ?? "");
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : "Network error");
     }
   }
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [workflowId]);
@@ -124,6 +132,14 @@ function WorkflowEditor({ workflowId, designations, onChanged }: { workflowId: n
     onChanged();
   }
 
+  if (loadError) {
+    return (
+      <div className="px-5 pb-4 text-sm">
+        <p className="text-red-700">Could not load workflow details: {loadError}</p>
+        <button onClick={load} className="mt-2 text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">Retry</button>
+      </div>
+    );
+  }
   if (!detail) return <p className="px-5 pb-4 text-sm text-slate-400">Loading…</p>;
 
   const labelsMap: Record<string, string> = Object.fromEntries(detail.labels.map((l) => [l.stage, l.label]));
