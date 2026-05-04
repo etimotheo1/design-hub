@@ -117,6 +117,27 @@ export interface WorkflowStageLabel {
   label: string;
 }
 
+export interface StageMove {
+  id: number;
+  card_id: number;
+  from_stage: Stage;
+  to_stage: Stage;
+  requested_by: number;
+  summary: string;
+  status: "pending" | "approved" | "rejected" | "auto_approved";
+  decided_by: number | null;
+  decided_at: string | null;
+  decision_note: string | null;
+  created_at: string;
+  // populated by JOIN:
+  card_title?: string;
+  project_id?: number;
+  project_name?: string;
+  requested_by_name?: string;
+  decided_by_name?: string | null;
+  attachments?: { id: number; label: string; url: string }[];
+}
+
 export interface Card {
   id: number;
   project_id: number;

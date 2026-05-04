@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { CardWithMeta, Project, SessionUser, TaxonomyItem } from "@/lib/types";
 import { colorClasses } from "@/lib/colors";
 import CardModal from "./CardModal";
+import MoveCardDialog from "./MoveCardDialog";
 
 const LS_PROJECT = "designhub.bucketlist.project";
 const LS_CATEGORY = "designhub.bucketlist.category";
@@ -45,6 +46,8 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
   const [projectSearch, setProjectSearch] = useState("");
 
   const [openCardId, setOpenCardId] = useState<number | null>(null);
+  const [moveDialog, setMoveDialog] = useState<{ id: number; title: string } | null>(null);
+  const [pendingNotice, setPendingNotice] = useState<string | null>(null);
 
   async function load() {
     const [c, p, t] = await Promise.all([
@@ -198,13 +201,8 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
     setExpansion(null);
   }
 
-  async function promote(id: number) {
-    await fetch(`/api/cards/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stage: "design" }),
-    });
-    load();
+  function promote(id: number, title: string) {
+    setMoveDialog({ id, title });
   }
 
   function ageLabel(iso: string): string {
@@ -554,7 +552,7 @@ export default function Bucketlist({ currentUser }: { currentUser: SessionUser }
                     </div>
                   </button>
                   <button
-                    onClick={() => promote(c.id)}
+                    onClick={() => promote(c.id, c.title)}
                     className="opacity-0 group-hover:opacity-100 transition flex-shrink-0 text-xs px-2.5 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
                     title="Move to Design stage"
                   >

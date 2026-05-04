@@ -30,12 +30,28 @@ type PendingSubmission = {
   created_at: string;
 };
 
+type PendingMove = {
+  id: number;
+  card_id: number;
+  card_title: string;
+  project_id: number;
+  project_name: string;
+  from_stage: Stage;
+  to_stage: Stage;
+  summary: string;
+  requested_by: number;
+  requested_by_name: string;
+  created_at: string;
+  attachments: { label: string; url: string }[];
+};
+
 type ApprovalsData = {
   stuckIdeas: ApprovalCard[];
   overdueCards: ApprovalCard[];
   dueSoon: ApprovalCard[];
   pendingInvites: (Invitation & { invited_by_name: string })[];
   pendingSubmissions: PendingSubmission[];
+  pendingMoves: PendingMove[];
 };
 
 const STAGE_PILL: Record<Stage, string> = {
@@ -108,7 +124,25 @@ export default function Approvals({ currentUser }: { currentUser: SessionUser })
 
   const totalAttention =
     data.stuckIdeas.length + data.overdueCards.length + data.dueSoon.length +
-    data.pendingInvites.length + (data.pendingSubmissions?.length ?? 0);
+    data.pendingInvites.length + (data.pendingSubmissions?.length ?? 0) +
+    (data.pendingMoves?.length ?? 0);
+
+  async function approveMove(moveId: number, note?: string) {
+    await fetch(`/api/stage-moves/${moveId}/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note: note || null }),
+    });
+    load();
+  }
+  async function rejectMove(moveId: number, note?: string) {
+    await fetch(`/api/stage-moves/${moveId}/reject`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note: note || null }),
+    });
+    load();
+  }
 
   if (totalAttention === 0) {
     return (
@@ -122,6 +156,24 @@ export default function Approvals({ currentUser }: { currentUser: SessionUser })
 
   return (
     <div className="space-y-6">
+      {data.pendingMoves && data.pendingMoves.length > 0 && (
+        <Section
+          title={`Stage move requests (${data.pendingMoves.length})`}
+          tint="indigo"
+          subtitle="Team members are asking to advance these cards. Review the summary and approve or send back."
+        >
+          {data.pendingMoves.map((m) => (
+            <PendingMoveRow
+              key={m.id}
+              move={m}
+              onApprove={(note) => approveMove(m.id, note)}
+              onReject={(note) => rejectMove(m.id, note)}
+              onOpen={() => setOpenCardId(m.card_id)}
+            />
+          ))}
+        </Section>
+      )}
+
       {currentUser.role === "admin" && data.pendingSubmissions && data.pendingSubmissions.length > 0 && (
         <Section
           title={`New project suggestions (${data.pendingSubmissions.length})`}
@@ -306,6 +358,103 @@ function PendingRow({
             className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
           >Move card</button>
           <button onClick={() => setMode("choose")} className="text-xs text-slate-500 hover:text-slate-800">Cancel</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PendingMoveRow({
+  move, onApprove, onReject, onOpen,
+}: {
+  move: PendingMove;
+  onApprove: (note?: string) => void;
+  onReject: (note?: string) => void;
+  onOpen: () => void;
+}) {
+  const [mode, setMode] = useState<"idle" | "approving" | "rejecting">("idle");
+  const [note, setNote] = useState("");
+
+  return (
+    <div className="px-4 py-3 hover:bg-slate-50">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <button onClick={onOpen} className="text-left min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <span className="text-xs text-slate-500 truncate">{move.project_name}</span>
+            <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded font-semibold ${STAGE_PILL[move.from_stage]}`}>
+              {STAGE_LABELS[move.from_stage]}
+            </span>
+            <span className="text-slate-400 text-xs">→</span>
+            <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded font-semibold ${STAGE_PILL[move.to_stage]}`}>
+              {STAGE_LABELS[move.to_stage]}
+            </span>
+          </div>
+          <div className="text-sm font-medium text-slate-900">{move.card_title}</div>
+          <div className="text-[11px] text-slate-500 mt-1">
+            Requested by <span className="font-medium">{move.requested_by_name}</span>
+            {" · "}
+            {new Date(move.created_at).toLocaleString()}
+          </div>
+        </button>
+      </div>
+
+      <div className="mt-2 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
+        <div className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold mb-1">Summary</div>
+        <p className="text-sm text-slate-800 whitespace-pre-wrap">{move.summary}</p>
+        {move.attachments.length > 0 && (
+          <ul className="mt-2 space-y-0.5">
+            {move.attachments.map((a, i) => (
+              <li key={i} className="text-xs flex items-center gap-1.5">
+                <span className="text-slate-400">📎</span>
+                <a href={a.url} target="_blank" rel="noreferrer" className="text-indigo-700 hover:underline truncate">
+                  {a.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {mode === "idle" && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            onClick={() => onApprove()}
+            className="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+          >
+            ✓ Approve &amp; move
+          </button>
+          <button
+            onClick={() => setMode("rejecting")}
+            className="text-xs px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100"
+          >
+            Send back
+          </button>
+        </div>
+      )}
+
+      {mode === "rejecting" && (
+        <div className="mt-3 space-y-2">
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={2}
+            placeholder="Reason (optional) — what should they fix or add?"
+            className="w-full text-sm rounded-lg border border-slate-300 px-3 py-1.5"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={() => onReject(note)}
+              className="text-xs px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700"
+            >
+              Send back
+            </button>
+            <button
+              onClick={() => { setMode("idle"); setNote(""); }}
+              className="text-xs text-slate-500 hover:text-slate-800"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       )}
     </div>

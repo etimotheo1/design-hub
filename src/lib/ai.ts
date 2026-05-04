@@ -127,6 +127,73 @@ export async function expandIdea(input: ExpandInput): Promise<{ ok: boolean; res
   }
 }
 
+export interface SuggestDesignationsInput {
+  existing: string[];   // designations already in the system (we won't suggest these again)
+  orgContext?: string;  // optional: brief description of the org / team
+}
+
+export interface SuggestDesignationsResult {
+  designations: { name: string; reason: string }[];
+}
+
+export async function suggestDesignations(
+  input: SuggestDesignationsInput
+): Promise<{ ok: boolean; result?: SuggestDesignationsResult; error?: string }> {
+  if (!isAIConfigured()) return { ok: false, error: "AI not configured" };
+
+  const system = [
+    "You suggest job-title designations for a small-to-medium company's design-thinking pipeline tool.",
+    "Designations are the roles that approve stage transitions on cards (e.g. 'Manager', 'Line Manager', 'CEO').",
+    "Suggest 6 to 10 designations that would be useful for a typical company, biased toward roles that have approval authority.",
+    "Avoid suggesting designations that are already in the existing list (case-insensitive).",
+    "Each designation should be a short noun phrase (1–3 words), Title Case.",
+    'Respond ONLY with JSON: {"designations":[{"name":"...","reason":"one short phrase"}, ...]}. No code fences, no prose.',
+  ].join(" ");
+
+  const userMsg = [
+    `Existing designations (skip these): ${input.existing.join(", ") || "(none yet)"}`,
+    input.orgContext ? `Organisation context: ${input.orgContext}` : "Organisation context: small/mid-size company with technology, operations, and business teams.",
+  ].join("\n");
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": process.env.ANTHROPIC_API_KEY!,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 400,
+        system,
+        messages: [{ role: "user", content: userMsg }],
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      return { ok: false, error: `Anthropic ${res.status}: ${body.slice(0, 200)}` };
+    }
+    const json = await res.json() as { content?: Array<{ type: string; text?: string }> };
+    const text = json.content?.find((c) => c.type === "text")?.text ?? "";
+    const m = text.match(/\{[\s\S]*\}/);
+    if (!m) return { ok: false, error: "No JSON in model response" };
+
+    const parsed = JSON.parse(m[0]) as { designations?: Array<{ name?: string; reason?: string }> };
+    const existingLower = new Set(input.existing.map((s) => s.toLowerCase()));
+    const designations = (parsed.designations ?? [])
+      .map((d) => ({
+        name: typeof d.name === "string" ? d.name.trim() : "",
+        reason: typeof d.reason === "string" ? d.reason.trim() : "",
+      }))
+      .filter((d) => d.name && !existingLower.has(d.name.toLowerCase()));
+
+    return { ok: true, result: { designations } };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "AI call failed" };
+  }
+}
+
 export async function suggestTaxonomy(input: SuggestInput): Promise<{ ok: boolean; suggestion?: SuggestResult; error?: string }> {
   if (!isAIConfigured()) return { ok: false, error: "AI not configured" };
   if (!input.title.trim()) return { ok: false, error: "Empty title" };

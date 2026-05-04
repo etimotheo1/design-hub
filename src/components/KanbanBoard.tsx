@@ -5,6 +5,7 @@ import { STAGES, STAGE_LABELS } from "@/lib/types";
 import KanbanColumn from "./KanbanColumn";
 import CardModal from "./CardModal";
 import NewCardForm from "./NewCardForm";
+import MoveCardDialog from "./MoveCardDialog";
 
 export default function KanbanBoard({ currentUser }: { currentUser: SessionUser }) {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -14,6 +15,8 @@ export default function KanbanBoard({ currentUser }: { currentUser: SessionUser 
   const [showNewCard, setShowNewCard] = useState(false);
   const [newCardStage, setNewCardStage] = useState<Stage>("idea");
   const [loading, setLoading] = useState(true);
+  const [moveDialog, setMoveDialog] = useState<{ card: CardWithMeta; toStage: Stage } | null>(null);
+  const [pendingNotice, setPendingNotice] = useState<string | null>(null);
 
   const loadProjects = useCallback(async () => {
     const res = await fetch("/api/projects");
@@ -38,15 +41,12 @@ export default function KanbanBoard({ currentUser }: { currentUser: SessionUser 
     loadCards();
   }, [loadCards]);
 
-  // Move a card to a different stage. Optimistic update + server confirm.
-  async function moveCard(cardId: number, toStage: Stage) {
-    setCards((prev) => prev.map((c) => (c.id === cardId ? { ...c, stage: toStage } : c)));
-    await fetch(`/api/cards/${cardId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stage: toStage }),
-    });
-    loadCards();
+  // Open the move dialog (every move requires a summary now).
+  function moveCard(cardId: number, toStage: Stage) {
+    const card = cards.find((c) => c.id === cardId);
+    if (!card) return;
+    if (card.stage === toStage) return;
+    setMoveDialog({ card, toStage });
   }
 
   async function refreshCard(cardId: number) {
@@ -132,6 +132,28 @@ export default function KanbanBoard({ currentUser }: { currentUser: SessionUser 
           onClose={() => setShowNewCard(false)}
           onCreated={() => { setShowNewCard(false); loadCards(); }}
         />
+      )}
+
+      {moveDialog && (
+        <MoveCardDialog
+          cardId={moveDialog.card.id}
+          cardTitle={moveDialog.card.title}
+          currentStage={moveDialog.card.stage as Stage}
+          toStage={moveDialog.toStage}
+          onClose={() => setMoveDialog(null)}
+          onDone={(status) => {
+            setMoveDialog(null);
+            if (status === "pending") setPendingNotice("Sent for approval. The card stays put until an approver acts.");
+            loadCards();
+            setTimeout(() => setPendingNotice(null), 5000);
+          }}
+        />
+      )}
+
+      {pendingNotice && (
+        <div className="fixed bottom-4 right-4 z-40 bg-amber-600 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg">
+          {pendingNotice}
+        </div>
       )}
     </div>
   );

@@ -1,7 +1,23 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { all } from "@/lib/db";
+import { checkStageApproval } from "@/lib/workflow";
 import type { Invitation, Stage } from "@/lib/types";
+
+type PendingMove = {
+  id: number;
+  card_id: number;
+  card_title: string;
+  project_id: number;
+  project_name: string;
+  from_stage: Stage;
+  to_stage: Stage;
+  summary: string;
+  requested_by: number;
+  requested_by_name: string;
+  created_at: string;
+  attachments: { label: string; url: string }[];
+};
 
 type ApprovalCard = {
   id: number;
@@ -110,6 +126,50 @@ export async function GET() {
     );
   }
 
+  // Pending stage-move requests the current user can approve.
+  // Fetch all pending moves, then filter via the workflow check.
+  const allPending = all<{
+    id: number; card_id: number; from_stage: Stage; to_stage: Stage;
+    summary: string; requested_by: number; created_at: string;
+    card_title: string; project_id: number; project_name: string;
+    requested_by_name: string;
+  }>(
+    `SELECT m.id, m.card_id, m.from_stage, m.to_stage, m.summary, m.requested_by, m.created_at,
+            c.title AS card_title, c.project_id, p.name AS project_name,
+            u.display_name AS requested_by_name
+     FROM stage_moves m
+     JOIN cards c ON c.id = m.card_id
+     JOIN projects p ON p.id = c.project_id
+     JOIN users u ON u.id = m.requested_by
+     WHERE m.status = 'pending'
+       AND p.archived = 0
+     ORDER BY m.created_at ASC`
+  );
+
+  const pendingMoves: PendingMove[] = [];
+  for (const m of allPending) {
+    const check = checkStageApproval(user.id, user.role, m.project_id, m.from_stage, m.to_stage);
+    if (!check.allowed) continue;
+    const atts = all<{ label: string; url: string }>(
+      `SELECT label, url FROM stage_move_attachments WHERE move_id = ? ORDER BY id ASC`,
+      [m.id]
+    );
+    pendingMoves.push({
+      id: m.id,
+      card_id: m.card_id,
+      card_title: m.card_title,
+      project_id: m.project_id,
+      project_name: m.project_name,
+      from_stage: m.from_stage,
+      to_stage: m.to_stage,
+      summary: m.summary,
+      requested_by: m.requested_by,
+      requested_by_name: m.requested_by_name,
+      created_at: m.created_at,
+      attachments: atts,
+    });
+  }
+
   return NextResponse.json({
     ok: true,
     stuckIdeas,
@@ -117,5 +177,6 @@ export async function GET() {
     dueSoon,
     pendingInvites,
     pendingSubmissions,
+    pendingMoves,
   });
 }

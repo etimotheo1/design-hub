@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { Card, Comment, Attachment, Stage, SessionUser, User, TaxonomyItem, Collaborator } from "@/lib/types";
 import { STAGES, STAGE_LABELS } from "@/lib/types";
 import DateTimePicker from "./DateTimePicker";
+import MoveCardDialog from "./MoveCardDialog";
 
 type SubmissionAnswer = { field_label: string; field_type: string; value: string | null; position: number };
 
@@ -48,6 +49,8 @@ export default function CardModal({
   const [expanding, setExpanding] = useState(false);
   const [expansion, setExpansion] = useState<string | null>(null);
   const [expandError, setExpandError] = useState<string | null>(null);
+  const [moveTo, setMoveTo] = useState<Stage | null>(null);
+  const [moveNotice, setMoveNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/cards/${cardId}`);
@@ -201,19 +204,23 @@ export default function CardModal({
           <h2 className="text-lg font-semibold text-slate-900">{card.title}</h2>
         )}
 
-        {/* Stage selector + assignee */}
+        {/* Stage display + move buttons (every move requires summary via dialog) */}
         <div className="flex flex-wrap gap-3 items-center text-sm">
-          <div>
-            <span className="text-slate-500 mr-2">Stage:</span>
-            <select
-              value={card.stage}
-              onChange={(e) => patch({ stage: e.target.value as Stage })}
-              className="rounded-lg border border-slate-300 px-2 py-1 bg-white"
-            >
-              {STAGES.map((s) => (
-                <option key={s} value={s}>{STAGE_LABELS[s]}</option>
-              ))}
-            </select>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-slate-500">Stage:</span>
+            <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 text-xs font-medium uppercase tracking-wide">
+              {STAGE_LABELS[card.stage as Stage]}
+            </span>
+            <span className="text-slate-400 text-xs">Move to →</span>
+            {STAGES.filter((s) => s !== card.stage).map((s) => (
+              <button
+                key={s}
+                onClick={() => setMoveTo(s)}
+                className="text-xs px-2 py-1 rounded-lg border border-slate-300 bg-white hover:bg-indigo-50 hover:border-indigo-300 text-slate-700"
+              >
+                {STAGE_LABELS[s]}
+              </button>
+            ))}
           </div>
           <div>
             <span className="text-slate-500 mr-2">Assignee:</span>
@@ -467,7 +474,32 @@ export default function CardModal({
             <button onClick={addComment} className="self-end text-sm px-3 py-1.5 rounded-lg bg-brand text-white hover:bg-slate-800">Post</button>
           </div>
         </Section>
+
+        {moveNotice && (
+          <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-900">
+            {moveNotice}
+          </div>
+        )}
       </div>
+
+      {moveTo && (
+        <MoveCardDialog
+          cardId={card.id}
+          cardTitle={card.title}
+          currentStage={card.stage as Stage}
+          toStage={moveTo}
+          onClose={() => setMoveTo(null)}
+          onDone={(status) => {
+            setMoveTo(null);
+            if (status === "pending") {
+              setMoveNotice("Sent for approval. The card stays in the current stage until an approver acts.");
+              setTimeout(() => setMoveNotice(null), 6000);
+            }
+            load();
+            onChange();
+          }}
+        />
+      )}
     </Modal>
   );
 }
